@@ -1,0 +1,8 @@
+include *.txt *.ini *.cfg *.rst requirements
+
+include docs/Makefile
+recursive-include docs/source *.py *.rst .placeholder
+
+include examples/BasicExample/MANIFEST.in
+recursive-include examples/BasicExample *.py
+recursive-include examples/BasicExample *.txt *.ini *.cfg *.rst
