@@ -91,3 +91,16 @@ Moreover,
 .. _Pyramid: http://docs.pylonsproject.org/projects/pyramid/en/latest/
 
 .. _Sphinx: http://sphinx-doc.org/
+
+
+Acknowledgements
+----------------
+
+This work is partially supported by the Strategic International
+Collaborative R&D Promotion Project of the Ministry of Internal Affairs
+and Communication, Japan, and by the European Union Seventh Framework
+Programme (FP7/2007--2013) under grant agreement No. 608533 (NECOMA).
+
+For more information on the NECOMA project see:
+http://www.necoma-project.eu/
+
