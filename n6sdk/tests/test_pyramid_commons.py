@@ -79,6 +79,33 @@ class TestDefaultStreamViewBase__concrete_view_class(unittest.TestCase):
                 data_backend_api_method='some_method_name')
 
 
+class TestDefaultStreamViewBase__iter_deduplicated_params(unittest.TestCase):
+
+    def test(self):
+        func = DefaultStreamViewBase.iter_deduplicated_params.__func__
+        obj = MagicMock()
+        obj.request.params.__iter__.return_value = iter(['foo', 'bar', 'spam'])
+        obj.request.params.getall.side_effect = [
+            ['f1'],
+            ['b1,b2,b3'],
+            ['s1', 's2,s3'],
+        ]
+        result = list(func(obj))
+        self.assertEqual(obj.request.params.__iter__.mock_calls, [
+            call(),
+        ])
+        self.assertEqual(obj.request.params.getall.mock_calls, [
+            call('foo'),
+            call('bar'),
+            call('spam'),
+        ])
+        self.assertEqual(result, [
+            ('foo', ['f1']),
+            ('bar', ['b1', 'b2', 'b3']),
+            ('spam', ['s1', 's2', 's3']),
+        ])
+
+
 @patch('n6sdk.pyramid_commons.LOGGER')
 class TestDefaultStreamViewBase__call_api(unittest.TestCase):
 

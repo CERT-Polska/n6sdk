@@ -1,3 +1,137 @@
+0.5.0 (2015-04-18)
+==================
+
+Major or backward incompatible changes:
+
+* Now, multiple values for a client query parameter can be specified
+  in URL query strings in two alternative ways:
+
+  * separated with commas, within one query string item (as in past
+    *n6sdk* versions), e.g.: ``category=bots,dos-attacker,phish``;
+
+  * as individual query string items (the way introduced in this
+    *n6sdk* release), e.g.:
+    ``category=bots&category=dos-attacker&category=phish``.
+
+  Implementation of the extension caused the following changes in the
+  *n6sdk* programming interfaces:
+
+  * now, the argument for `<data specification>.clean_param_dict()` is
+    a dictionary that maps query parameter names to *lists of
+    individual uncleaned parameter values* (in past *n6sdk* versions
+    it mapped to *strings consisting of comma-separated uncleaned
+    parameter values*);
+
+  * extraction of individual query parameter values from the URL's
+    query string -- including splitting comma-separated sequences of
+    values -- is now *entirely outside* of the data specification
+    machinery and field classes; the
+    `n6sdk.data_spec.fields.Field._split_raw_param_value()` non-public
+    method has been removed.
+
+  * the interface of the `n6sdk.exceptions.ParamValueCleaningError`
+    constructor has been extended a bit: now the second item of a
+    3-tuple being an item of a `error_info_seq` argument can be either
+    a single value (as previously) or a list of values.
+
+  The *tutorial* and other parts of the documentation have been
+  adjusted appropriately.
+
+* Significant changes related to *data specification* fields:
+
+  * New field classes in the `n6sdk.data_spec.fields` module:
+
+    * `IPv6Field` (for IPv6 addresses),
+    * `IPv6NetField` (for IPv6 network specifications),
+    * `EmailSimplifiedField` (for e-mail addresses),
+    * `IBANSimplifiedField` (for IBAN numbers),
+    * `ListOfDictsField` (for lists of dicts containing arbitrary data),
+    * `DirField` (two-value enumeration: ``'src'`` or ``'dst'``).
+
+  * Modified field classes in the `n6sdk.data_spec.fields`
+    module:
+
+    * `DictResultField`:
+
+      * the ``key_to_subfield_factory`` attribute is
+        no longer obligatory;
+      * the ``required_keys`` attribute is gone;
+      * the :meth:`clean_param_value` method now raises `TypeError`
+        instead of `NotImplementedError`;
+
+    * `AddressField`:
+
+      * now inherits from `ListOfDictsField` and not
+        directly from `ResultListFieldMixin` and `DictResultField`;
+      * the ``required_keys`` attribute is gone; ``ip`` subfield is still
+        obligatory -- but now this requirement is implemented internally;
+      * the :meth:`clean_param_value` method now raises `TypeError`
+        instead of `NotImplementedError`.
+
+  * New field specifications added to the `n6sdk.data_spec.DataSpec`
+    class:
+
+    * ``time.until`` (`DateTimeField`, params-only),
+    * ``active.until`` (`DateTimeField`, params-only),
+    * ``modified`` (`DateTimeField`, results-only),
+    * ``modified.min`` (`DateTimeField`, params-only),
+    * ``modified.max`` (`DateTimeField`, params-only),
+    * ``modified.until`` (`DateTimeField`, params-only),
+    * ``ipv6`` (`IPv6Field`, params-only),
+    * ``ipv6.net`` (`IPv6NetField`, params-only),
+    * ``injects`` (`ListOfDictsField`, results-only),
+    * ``registrar`` (`UnicodeLimitedField`),
+    * ``url_pattern`` (`UnicodeLimitedField`),
+    * ``username`` (`UnicodeLimitedField`),
+    * ``x509fp_sha1`` (`SHA1Field`),
+    * ``email`` (`EmailSimplifiedField`),
+    * ``iban`` (`IBANSimplifiedField`),
+    * ``phone`` (`UnicodeLimitedField`).
+
+  * The ``address`` field specification (at
+    `n6sdk.data_spec.DataSpec`) has been modified: now it is an
+    `ExtendedAddressField` instance -- its subfields include:
+
+    * ``ip``/``ipv6`` (`IPv4Field`/`IPv6Field`, obligatory -- which
+      means that either ``'ip'`` or ```ipv6'``, but *not* both, must
+      be present in each member dictionary),
+    * ``cc`` (`CCField`),
+    * ``asn`` (`ASNField`),
+    * ``dir`` (`DirField`),
+    * ``rdns`` (`DomainNameField`).
+
+  * New categories added to `DataSpec.category.enum_values`:
+
+    * ``'amplifier'``,
+    * ``'backdoor'``,
+    * ``'dns-query'``,
+    * ``'flow'``,
+    * ``'flow-anomaly'``,
+    * ``'fraud'``,
+    * ``'leak'``,
+    * ``'vulnerable'``,
+    * ``'webinject'``.
+
+  The *tutorial* has been adjusted appropriately.
+
+* Both standard renderers (``json`` and ``sjson``) now add the ``Z``
+  suffix (indicating the UTC time) to all *date+time* values.
+
+* The ``sjson`` renderer now generates an additional empty line to
+  indicate the end of data stream.
+
+
+Other changes:
+
+* A new external dependency: the `ipaddr`_ library.
+
+* New and improved unit tests and doctests.
+
+* Several documentation improvements and fixes.
+
+.. _`ipaddr`: https://code.google.com/p/ipaddr-py/
+
+
 0.4.0 (2014-12-23)
 ==================
 

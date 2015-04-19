@@ -46,11 +46,7 @@ BasicExample) for development:
 5. Start a test server:
 > pserve development.ini
 
-6. In a web browser go to the URL:
-http://127.0.0.1:6543/incidents.json
-
-or check the URL examples below.
-
+6. In a web browser go to any of the example URLs listed below.
 
 Examples of valid query URLs:
 
@@ -59,6 +55,7 @@ http://127.0.0.1:6543/incidents.json?ip=11.22.33.44
 http://127.0.0.1:6543/incidents.json?category=phish
 http://127.0.0.1:6543/incidents.json?category=my-custom-category
 http://127.0.0.1:6543/incidents.json?category=my-custom-category&ip=11.22.33.44
+http://127.0.0.1:6543/incidents.json?category=bots&category=dos-attacker
 http://127.0.0.1:6543/incidents.json?category=bots,dos-attacker,phish,my-custom-category
 http://127.0.0.1:6543/incidents.json?time=2014-04-01T10:00
 http://127.0.0.1:6543/incidents.sjson?time=2014-04-01T10:00,2014-04-01T23:59:59,2015-05-05T13:13
@@ -72,9 +69,9 @@ Examples of invalid query URLs:
 
 http://127.0.0.1:6543/incidents
 http://127.0.0.1:6543/incidents.json?some-illegal-key=1&another-one=foo
-http://127.0.0.1:6543/incidents.json?category=bots&category=dos-attacker
 http://127.0.0.1:6543/incidents.json?category=wrong
 http://127.0.0.1:6543/incidents.json?category=bots,dos-attacker,wrong
+http://127.0.0.1:6543/incidents.json?category=bots&category=wrong
 http://127.0.0.1:6543/incidents.json?ip=11.22.33.44.55
 http://127.0.0.1:6543/incidents.sjson?ip=11.22.33.444
 http://127.0.0.1:6543/incidents.sjson?mac_address=00:11:123456:33:44:55

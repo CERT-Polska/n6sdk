@@ -25,17 +25,25 @@ from n6sdk.data_spec.fields import (
     UnicodeRegexField,
     SourceField,
     IPv4Field,
+    IPv6Field,
     AnonymizedIPv4Field,
     IPv4NetField,
+    IPv6NetField,
     CCField,
     URLSubstringField,
     URLField,
     DomainNameSubstringField,
     DomainNameField,
+    EmailSimplifiedField,
     IntegerField,
     ASNField,
     PortField,
-    AddressField)
+    IBANSimplifiedField,
+    ListOfDictsField,
+    AddressField,
+    DirField,
+    ExtendedAddressField,
+)
 from n6sdk.datetime_helpers import (
     FixedOffsetTimezone,
 )
@@ -179,21 +187,6 @@ class TestInitKwargsAndAttributes(GenericDataSpecTestMixin, unittest.TestCase):
         for value in ('OPTIONAL', False, True, 'blablabla'):
             with self.assertRaises(ValueError):
                 self.MyField(in_result=value)
-
-
-class Test_split_raw_param_value(unittest.TestCase):
-
-    def test_ok_for_string(self):
-        self.assertEqual(Field()._split_raw_param_value('a'),
-                         ['a'])
-        self.assertEqual(Field()._split_raw_param_value(u' a ,\nb,c '),
-                         [u' a ', u'\nb', u'c '])
-
-    def test_error_for_nonstring(self):
-        with self.assertRaises(TypeError):
-            self.assertEqual(Field()._split_raw_param_value(None))
-        with self.assertRaises(TypeError):
-            self.assertEqual(Field()._split_raw_param_value(['a']))
 
 
 #
@@ -1021,6 +1014,299 @@ class TestIPv4Field(FieldTestMixin, unittest.TestCase):
         )
 
 
+class TestIPv6Field(FieldTestMixin, unittest.TestCase):
+
+    CLASS = IPv6Field
+
+    def cases__clean_param_value(self):
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given=u'2001:db8:85a3:0:0:8a2e:370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given='2001:0DB8:85A3:0000:0000:8A2E:0370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given=u'2001:0db8:85a3::8a2e:370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given=u'2001:0Db8:85A3::8a2e:370:7334',
+            expected=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:0000:0000',
+            expected=u'0000:0000:0000:0000:0000:0000:0000:0000',
+        )
+        yield case(
+            given=u'::',
+            expected=u'0000:0000:0000:0000:0000:0000:0000:0000',
+        )
+        yield case(
+            given='::7f7f:7f7f',
+            expected=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+        )
+        yield case(
+            given=u'::127.127.127.127',
+            expected=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:127.127.127.127',
+            expected=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+        )
+        yield case(
+            given=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+            expected=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+        )
+        yield case(
+            given='ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+        )
+        yield case(
+            given=u'FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:ffff:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=' 2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334 ',
+            expected=FieldValueError
+        )
+        yield case(
+            given=' 2001:db8:85a3::8a2e:370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:db8:85a3::8a2e:370:7334 ',
+            expected=FieldValueError
+        )
+        yield case(
+            given='gggg:gggg:gggg:gggg:gggg:gggg:gggg:gggg',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:73345',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:bb85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:85a3::0000:8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:::8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8::85a3:8a2e::7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'::127.127.127.127.',
+            expected=FieldValueError
+        )
+        yield case(
+            given='1234',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370: 7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001 :0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3: :8a2e:0370: 7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='123.45.67.8',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='',
+            expected=FieldValueError,
+        )
+
+    def cases__clean_result_value(self):
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=u'2001:db8:85a3::8a2e:370:7334',
+        )
+        yield case(
+            given='2001:db8:85a3:0:0:8a2e:370:7334',
+            expected=u'2001:db8:85a3::8a2e:370:7334',
+        )
+        yield case(
+            given='2001:0DB8:85A3:0000:0000:8A2E:0370:7334',
+            expected=u'2001:db8:85a3::8a2e:370:7334',
+        )
+        yield case(
+            given=u'2001:0db8:85a3::8a2e:370:7334',
+            expected=u'2001:db8:85a3::8a2e:370:7334',
+        )
+        yield case(
+            given=u'2001:0Db8:85A3::8a2e:370:7334',
+            expected=u'2001:db8:85a3::8a2e:370:7334',
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:0000:0000',
+            expected=u'::',
+        )
+        yield case(
+            given=u'::',
+            expected=u'::',
+        )
+        yield case(
+            given='::7f7f:7f7f',
+            expected=u'::7f7f:7f7f',
+        )
+        yield case(
+            given=u'::127.127.127.127',
+            expected=u'::7f7f:7f7f',
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:127.127.127.127',
+            expected=u'::7f7f:7f7f',
+        )
+        yield case(
+            given=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f',
+            expected=u'::7f7f:7f7f',
+        )
+        yield case(
+            given='ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+        )
+        yield case(
+            given=u'FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff',
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:ffff:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=' 2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334 ',
+            expected=FieldValueError
+        )
+        yield case(
+            given=' 2001:db8:85a3::8a2e:370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:db8:85a3::8a2e:370:7334 ',
+            expected=FieldValueError
+        )
+        yield case(
+            given='gggg:gggg:gggg:gggg:gggg:gggg:gggg:gggg',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:73345',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:bb85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:85a3::0000:8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:::8a2e:0370:7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8::85a3:8a2e::7334:',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'::127.127.127.127.',
+            expected=FieldValueError
+        )
+        yield case(
+            given='1234',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370: 7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001 :0db8:85a3:0000:0000:8a2e:0370:7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3: :8a2e:0370: 7334',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='123.45.67.8',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=123,
+            expected=TypeError,
+        )
+        yield case(
+            given=None,
+            expected=TypeError,
+        )
+
+
 class TestAnonymizedIPv4Field(FieldTestMixin, unittest.TestCase):
 
     CLASS = AnonymizedIPv4Field
@@ -1226,7 +1512,7 @@ class TestIPv4NetField(FieldTestMixin, unittest.TestCase):
             expected=FieldValueError,
         )
         yield case(
-            given=u'1.2.3.4',             # not cidr
+            given=u'1.2.3.4',             # no network
             expected=FieldValueError,
         )
         yield case(
@@ -1306,6 +1592,10 @@ class TestIPv4NetField(FieldTestMixin, unittest.TestCase):
         )
         yield case(
             given='1.2.3.4/',             # no network
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'1.23.4.56/4/5',
             expected=FieldValueError,
         )
         yield case(
@@ -1390,6 +1680,14 @@ class TestIPv4NetField(FieldTestMixin, unittest.TestCase):
             expected=FieldValueError,
         )
         yield case(
+            given=(u'1.2.3.25',),
+            expected=FieldValueError
+        )
+        yield case(
+            given=(u'1.2.3.25', 12, 13),
+            expected=FieldValueError
+        )
+        yield case(
             given=(u'1.2.3.25 ', 12),
             expected=FieldValueError
         )
@@ -1423,6 +1721,389 @@ class TestIPv4NetField(FieldTestMixin, unittest.TestCase):
         )
         yield case(
             given=(123, 22),
+            expected=FieldValueError
+        )
+        yield case(
+            given=123,
+            expected=FieldValueError,
+        )
+        yield case(
+            given=None,
+            expected=FieldValueError,
+        )
+
+
+class TestIPv6NetField(FieldTestMixin, unittest.TestCase):
+
+    CLASS = IPv6NetField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given=u'2001:db8:85a3:0:0:8a2e:370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given='2001:0DB8:85A3:0000:0000:8A2E:0370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given=u'2001:0db8:85a3::8a2e:370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given=u'2001:0Db8:85A3::8a2e:370:7334/64',
+            expected=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:0000:0000/0',
+            expected=(u'0000:0000:0000:0000:0000:0000:0000:0000', 0),
+        )
+        yield case(
+            given=u'::/0',
+            expected=(u'0000:0000:0000:0000:0000:0000:0000:0000', 0),
+        )
+        yield case(
+            given='::7f7f:7f7f/16',
+            expected=(u'0000:0000:0000:0000:0000:0000:7f7f:7f7f', 16),
+        )
+        yield case(
+            given=u'::127.127.127.127/16',
+            expected=(u'0000:0000:0000:0000:0000:0000:7f7f:7f7f', 16),
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:127.127.127.127/16',
+            expected=(u'0000:0000:0000:0000:0000:0000:7f7f:7f7f', 16),
+        )
+        yield case(
+            given=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f/16',
+            expected=(u'0000:0000:0000:0000:0000:0000:7f7f:7f7f', 16),
+        )
+        yield case(
+            given='ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+            expected=(u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 128),
+        )
+        yield case(
+            given=u'FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF/128',
+            expected=(u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 128),
+        )
+        yield case(
+            given='gggg:gggg:gggg:gggg:gggg:gggg:gggg:gggg/128',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/129',  # bad network
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/f0',    # bad network
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:ffff:0000:8a2e:0370:7334/64',  # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:8a2e:0370:7334/64',         # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:::8a2e:0370:7334/64',            # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001::0db8:85a3::8a2e:0370:7334/64',            # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',       # no network
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/',      # no network
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64/65',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334 /12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/ 12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:/12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:012',
+            expected=FieldValueError
+        )
+        yield case(
+            given='123.45.67.8/12',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='',
+            expected=FieldValueError
+        )
+
+    def cases__clean_result_value(self):
+        # string given
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=u'2001:db8:85a3:0:0:8a2e:370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given='2001:0DB8:85A3:0000:0000:8A2E:0370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=u'2001:0db8:85a3::8a2e:370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given='2001:0Db8:85A3::8a2e:370:7334/64',
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=u'0000:0000:0000:0000:0000:0000:0000:0000/0',
+            expected=u'::/0',
+        )
+        yield case(
+            given='::/0',
+            expected=u'::/0',
+        )
+        yield case(
+            given='::7f7f:7f7f/16',
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=u'::127.127.127.127/16',
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given='0000:0000:0000:0000:0000:0000:127.127.127.127/16',
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=u'0000:0000:0000:0000:0000:0000:7f7f:7f7f/16',
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given='ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+        )
+        yield case(
+            given=u'FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF/128',
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+        )
+        yield case(
+            given='gggg:gggg:gggg:gggg:gggg:gggg:gggg:gggg/128',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/129',  # bad network
+            expected=FieldValueError
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/f0',    # bad network
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:ffff:0000:8a2e:0370:7334/64',  # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:8a2e:0370:7334/64',         # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:::8a2e:0370:7334/64',            # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001::0db8:85a3::8a2e:0370:7334/64',            # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',       # no network
+            expected=FieldValueError,
+        )
+        yield case(
+            given='2001:0db8:85a3:0000:0000:8a2e:0370:7334/64/65',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334 /12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/ 12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:/12',
+            expected=FieldValueError
+        )
+        yield case(
+            given=u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:012',
+            expected=FieldValueError
+        )
+        yield case(
+            given='123.45.67.8/12',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='',
+            expected=FieldValueError
+        )
+        # non-string iterable given
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=('2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=(u'2001:db8:85a3:0:0:8a2e:370:7334', 64),
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=['2001:0DB8:85A3:0000:0000:8A2E:0370:7334', 64],
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=[u'2001:0db8:85a3::8a2e:370:7334', 64],
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=['2001:0Db8:85A3::8a2e:370:7334', 64],
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=(u'0000:0000:0000:0000:0000:0000:0000:0000', 0),
+            expected=u'::/0',
+        )
+        yield case(
+            given=('::', 0),
+            expected=u'::/0',
+        )
+        yield case(
+            given=('::7f7f:7f7f', 16),
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=(u'::127.127.127.127', 16),
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=('0000:0000:0000:0000:0000:0000:127.127.127.127', 16),
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=(u'0000:0000:0000:0000:0000:0000:7f7f:7f7f', 16),
+            expected=u'::7f7f:7f7f/16',
+        )
+        yield case(
+            given=('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 128),
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+        )
+        yield case(
+            given=(u'FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF', 128),
+            expected=u'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128',
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', '64'),
+            expected=u'2001:db8:85a3::8a2e:370:7334/64',
+        )
+        yield case(
+            given=('gggg:gggg:gggg:gggg:gggg:gggg:gggg:gggg', 128),
+            expected=FieldValueError
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 129),  # bad network
+            expected=FieldValueError
+        )
+        yield case(
+            given=('2001:0db8:85a3:0000:0000:8a2e:0370:7334', 'f0'),
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:ffff:0000:8a2e:0370:7334', 64),  # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=('2001:0db8:85a3:0000:8a2e:0370:7334', 64),         # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:::8a2e:0370:7334', 64),           # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=('2001::0db8:85a3::8a2e:0370:7334', 64),            # bad address
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',),      # no network
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64, 65),
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334/64', 65),
+            expected=FieldValueError,
+        )
+        yield case(
+            given=(' 2001:0db8:85a3:0000:0000:8a2e:0370:7334', 64),
+            expected=FieldValueError
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334 ', 64),
+            expected=FieldValueError
+        )
+        yield case(
+            given=(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:', 64),
+            expected=FieldValueError
+        )
+        yield case(
+            given=('123.45.67.8', 12),
+            expected=FieldValueError,
+        )
+        yield case(
+            given=('', 64),
+            expected=FieldValueError
+        )
+        yield case(
+            given=('2001:0db8:85a3:0000:0000:8a2e:0370:7334', ''),
+            expected=FieldValueError
+        )
+        yield case(
+            given=(123, 64),
             expected=FieldValueError
         )
         yield case(
@@ -2367,6 +3048,191 @@ class TestPortField(FieldTestMixin, unittest.TestCase):
         )
 
 
+class TestEmailSimplifiedField(FieldTestMixin, unittest.TestCase):
+
+    CLASS = EmailSimplifiedField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given='foo@example.com',
+            expected=u'foo@example.com',
+        )
+        yield case(
+            given=u'Gęślą@jaźń.coM',
+            expected=u'Gęślą@jaźń.coM',
+        )
+        yield case(
+            given='Gęślą@jaźń.coM',
+            expected=u'Gęślą@jaźń.coM',
+        )
+        yield case(
+            given=u'example.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'foo@ab' + '.c' * 124,
+            expected=u'foo@ab' + '.c' * 124,
+        )
+        yield case(
+            given=u'foo@abx' + '.c' * 124,
+            expected=FieldValueError,
+        )
+        yield case(
+            given=' foo@example.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'foo@example.com ',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='foo @ example.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'foo bar@example.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='foo@exam ple.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'@',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='a@b@example.com',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'',
+            expected=FieldValueError,
+        )
+
+    def cases__clean_result_value(self):
+        for c in self.cases__clean_param_value():
+            yield c
+        yield case(
+            given=123,
+            expected=TypeError,
+        )
+        yield case(
+            given=None,
+            expected=TypeError,
+        )
+
+
+class TestIBANSimplifiedField(FieldTestMixin, unittest.TestCase):
+
+    CLASS = IBANSimplifiedField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given='GB34WEST1234567890',
+            expected=u'GB34WEST1234567890',
+        )
+        yield case(
+            given=u'GB34WEST1234567890',
+            expected=u'GB34WEST1234567890',
+        )
+        yield case(
+            given='gb34west1234567890',
+            expected=U'GB34WEST1234567890',
+        )
+        yield case(
+            given=u'gb34WEst1234567890',
+            expected=U'GB34WEST1234567890',
+        )
+        yield case(
+            given='GB34',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'34WEST1234567890',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'GBWEST1234567890',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='GBX34WEST1234567890',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'G234WEST1234567890',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='GB 34 WEST 1234 5678 90',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=' GB34WEST1234567890',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='GB34WEST1234567890 ',
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'',
+            expected=FieldValueError,
+        )
+
+    def cases__clean_result_value(self):
+        for c in self.cases__clean_param_value():
+            yield c
+        yield case(
+            given=123,
+            expected=TypeError,
+        )
+        yield case(
+            given=None,
+            expected=TypeError,
+        )
+
+
+# TODO: improve/add test cases
+class TestListOfDictsField(FieldTestMixin, unittest.TestCase):
+
+    CLASS = ListOfDictsField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given='no implementation',
+            expected=TypeError,
+        )
+
+    def cases__clean_result_value(self):
+        obj = object()
+        yield case(
+            given=[{'foo': '12.23.45.56', 'bar': {1234: u'X'}, 'spam': obj}, {}],
+            expected=[{u'foo': '12.23.45.56', u'bar': {1234: u'X'}, u'spam': obj}, {}],
+        )
+        yield case(
+            given=[],
+            expected=ValueError,
+        )
+        yield case(
+            given=['abc'],
+            expected=TypeError,
+        )
+        yield case(
+            given=[[]],
+            expected=TypeError,
+        )
+        yield case(
+            given='abc',
+            expected=TypeError,
+        )
+        yield case(
+            given=123,
+            expected=TypeError,
+        )
+
+
 # TODO: improve test cases (+ remove redundant ones)
 class TestAddressField(FieldTestMixin, unittest.TestCase):
 
@@ -2374,11 +3240,15 @@ class TestAddressField(FieldTestMixin, unittest.TestCase):
 
     def cases__clean_param_value(self):
         yield case(
-            given='not_impl',
-            expected=NotImplementedError,
+            given='no implementation',
+            expected=TypeError,
         )
 
     def cases__clean_result_value(self):
+        yield case(
+            given=[{'ip': '12.23.45.56'}],
+            expected=[{u'ip': u'12.23.45.56'}],
+        )
         yield case(
             given=[{'ip': '12.23.45.56', 'cc': 'PL', 'asn': 123}],
             expected=[{u'ip': u'12.23.45.56', u'cc': u'PL', u'asn': 123}],
@@ -2468,9 +3338,133 @@ class TestAddressField(FieldTestMixin, unittest.TestCase):
         )
 
 
+class TestDirField(FieldTestMixin, unittest.TestCase):
+
+    CLASS = DirField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given='src',
+            expected=u'src',
+        )
+        yield case(
+            given=u'src',
+            expected=u'src',
+        )
+        yield case(
+            given='dst',
+            expected=u'dst',
+        )
+        yield case(
+            given=u'dst',
+            expected=u'dst',
+        )
+        yield case(
+            given=u'DST',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='foooo',
+            expected=FieldValueError,
+        )
+        yield case(
+            given='',
+            expected=FieldValueError,
+        )
+
+    def cases__clean_result_value(self):
+        for c in self.cases__clean_param_value():
+            yield c
+        yield case(
+            given=123,
+            expected=TypeError,
+        )
+        yield case(
+            given=None,
+            expected=TypeError,
+        )
+
+
+# TODO: improve test cases (+ remove redundant ones)
+class TestExtendedAddressField(TestAddressField):
+
+    CLASS = ExtendedAddressField
+
+    def cases__clean_param_value(self):
+        yield case(
+            given='no implementation',
+            expected=TypeError,
+        )
+
+    def cases__clean_result_value(self):
+        for c in super(TestExtendedAddressField, self).cases__clean_result_value():
+            yield c
+
+        yield case(
+            given=[{u'ipv6': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'}],
+            expected=[{u'ipv6': u'2001:db8:85a3::8a2e:370:7334'}],
+        )
+        yield case(
+            given=[{
+                'ipv6': '2001:0DB8:85A3:0000:0000:8A2E:0370:7334',
+                'cc': 'pL',
+                'asn': 123L,
+            }],
+            expected=[{
+                u'ipv6': u'2001:db8:85a3::8a2e:370:7334',
+                u'cc': u'PL',
+                u'asn': 123,
+            }],
+        )
+        yield case(
+            given=[
+                {'ipv6': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 'cc': 'pl', u'dir': 'dst'},
+                {u'ipv6': '0000::0001', 'dir': u'src', u'rdns': 'example.com'},
+                {'ip': u'12.23.45.56', u'dir': 'src', 'cc': 'pl', 'asn': '123'},
+            ],
+            expected=[
+                {u'ipv6': u'2001:db8:85a3::8a2e:370:7334', u'cc': u'PL', u'dir': u'dst'},
+                {u'ipv6': u'::1', u'dir': u'src', u'rdns': u'example.com'},
+                {u'ip': u'12.23.45.56', u'dir': u'src', u'cc': u'PL', u'asn': 123},
+            ],
+        )
+        yield case(
+            # bad ipv6
+            given=[{'ip': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:',
+                    'cc': 'PL', 'asn': 123}],
+            expected=FieldValueError,
+        )
+        yield case(
+            # ipv6 must be a str or unicode
+            given=[
+                {'ipv6': [u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'],
+                 'cc': 'PL', 'asn': 123}],
+            expected=TypeError,
+        )
+        yield case(
+            # bad dir
+            given=[{'ip': u'12.23.45.56', 'dir': 'fooo'}],
+            expected=FieldValueError,
+        )
+        yield case(
+            # bad rdns
+            given=[{'ip': u'12.23.45.56', 'rdns': '.example.com'}],
+            expected=FieldValueError,
+        )
+        yield case(
+            # both 'ip' and 'ipv6' keys present
+            given=[{'ip': '12.23.45.56',
+                    'ipv6': '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+                    'cc': 'pl',
+                    'asn': 123}],
+            expected=ValueError,
+        )
+
+
 # TODO: add dedicated ResultListFieldMixin tests
 # TODO: add dedicated DictResultField tests
-# (now these classes are tested only indirectly by the AddressField tests)
+# (now these classes are tested only indirectly by the
+# ListOfDictsField/AddressField/ExtendedAddressField tests)
 
 # class Test(FieldTestMixin, unittest.TestCase):
 #

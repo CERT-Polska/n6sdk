@@ -167,6 +167,30 @@ SOURCE_REGEX = re.compile(r'^[\-0-9a-z]+\.[\-0-9a-z]+$')
 PY_IDENTIFIER_REGEX = re.compile('^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 
+#: E-mail address (very rough validation)
+#:
+#: Used by :class:`n6sdk.data_spec.fields.EmailSimplifiedField`.
+EMAIL_SIMPLIFIED_REGEX = re.compile(r'''
+    ^
+    [^@\s]+
+    @
+    [^@\s]+
+    $
+''', re.VERBOSE | re.UNICODE)
+
+
+#: International Bank Account Number.
+#:
+#: Used by :class:`n6sdk.data_spec.fields.IBANSimplifiedField`.
+IBAN_REGEX = re.compile(r'''
+    ^
+    [A-Z]{2}
+    [0-9]{2}
+    [0-9A-Z]{8,30}
+    $
+''', re.VERBOSE)
+
+
 ISO_DATE_REGEX = re.compile(
     # here we don't check ranges of particular values (e.g. that month is
     # in 01..12) because it is better to do it in functions that use this

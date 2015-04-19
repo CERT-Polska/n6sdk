@@ -16,6 +16,8 @@ import collections
 import datetime
 import re
 
+import ipaddr
+
 from n6sdk.addr_helpers import (
     ip_network_as_tuple,
 )
@@ -34,6 +36,8 @@ from n6sdk.exceptions import (
 from n6sdk.regexes import (
     CC_SIMPLE_REGEX,
     DOMAIN_ASCII_LOWERCASE_REGEX,
+    EMAIL_SIMPLIFIED_REGEX,
+    IBAN_REGEX,
     IPv4_STRICT_DECIMAL_REGEX,
     IPv4_CIDR_NETWORK_REGEX,
     IPv4_ANONYMIZED_REGEX,
@@ -104,7 +108,7 @@ class Field(object):
 
         Args:
             `value`:
-                A singular parameter value (being *always* a
+                A single parameter value (being *always* a
                 :class:`str` or :class:`unicode` instance).
 
         Returns:
@@ -112,7 +116,7 @@ class Field(object):
             and validation).
 
         Raises:
-            Any instance/subclass of :exc:`~exceptions.Exception`,
+            Any instance/subclass of :exc:`~exceptions.Exception`
             (especially a :exc:`n6sdk.exceptions.FieldValueError`).
 
         The default implementation just passes the value unchanged.
@@ -189,15 +193,6 @@ class Field(object):
                 raise TypeError(
                     '{}.__init__() got an unexpected keyword argument {!r}'
                     .format(cls.__name__, attr_name))
-
-    @staticmethod
-    def _split_raw_param_value(raw_value):
-        # called in <data spec>._iter_clean_param_items()
-        if not isinstance(raw_value, basestring):
-            raise TypeError(
-                'param values are expected to be strings; got: {!r}'
-                .format(raw_value))
-        return raw_value.split(',')
 
 
 
@@ -347,7 +342,7 @@ class MD5Field(HexDigestField):
 class SHA1Field(HexDigestField):
 
     """
-    For hexadecimal SHA1 digests (hashes).
+    For hexadecimal SHA-1 digests (hashes).
     """
 
     num_of_characters = 40
@@ -478,7 +473,43 @@ class IPv4Field(UnicodeLimitedField, UnicodeRegexField):
 
     regex = IPv4_STRICT_DECIMAL_REGEX
     error_msg_template = '"{}" is not a valid IPv4 address'
-    max_length = 15  # <- formally redundant but improves introspection
+    max_length = 15  # <- formally redundant but may improve introspection
+
+
+class IPv6Field(UnicodeField):
+
+    """
+    For IPv6 addresses, such as ``2001:0db8:85a3:0000:0000:8a2e:0370:7334``.
+
+    Note that:
+
+    * when cleaning a parameter value -- the address is normalized to an
+      "exploded" form, such as
+      ``u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'``;
+
+    * when cleaning a result value -- the address is normalized to an
+      "compressed" form, such as ``u'2001:db8:85a3::8a2e:370:7334'``.
+    """
+
+    error_msg_template = '"{}" is not a valid IPv6 address'
+    max_length = 39  # <- not used at all but may improve introspection
+
+    def clean_param_value(self, value):
+        ipv6_obj = super(IPv6Field, self).clean_param_value(value)
+        return unicode(ipv6_obj.exploded)
+
+    def clean_result_value(self, value):
+        ipv6_obj = super(IPv6Field, self).clean_result_value(value)
+        return unicode(ipv6_obj.compressed)
+
+    def _fix_value(self, value):
+        value = super(IPv6Field, self)._fix_value(value)
+        try:
+            ipv6_obj = ipaddr.IPv6Address(value)
+        except Exception:
+            raise FieldValueError(public_message=(
+                self.error_msg_template.format(ascii_str(value))))
+        return ipv6_obj
 
 
 class AnonymizedIPv4Field(UnicodeLimitedField, UnicodeRegexField):
@@ -492,7 +523,7 @@ class AnonymizedIPv4Field(UnicodeLimitedField, UnicodeRegexField):
 
     regex = IPv4_ANONYMIZED_REGEX
     error_msg_template = '"{}" is not a valid anonymized IPv4 address'
-    max_length = 13  # <- formally redundant but improves introspection
+    max_length = 13  # <- formally redundant but may improve introspection
 
     def _fix_value(self, value):
         value = super(AnonymizedIPv4Field, self)._fix_value(value)
@@ -503,19 +534,26 @@ class IPv4NetField(UnicodeLimitedField, UnicodeRegexField):
 
     """
     For IPv4 network specifications (CIDR), such as ``127.234.5.0/24``.
+
+    Note that:
+
+    * when cleaning a parameter value -- an (<address part as unicode
+      string>, <net as int>) tuple is returned;
+
+    * when cleaning a result value -- a unicode string is returned.
     """
 
     regex = IPv4_CIDR_NETWORK_REGEX
     error_msg_template = ('"{}" is not a valid CIDR '
                           'IPv4 network specification')
-    max_length = 18  # <- formally redundant but improves introspection
+    max_length = 18  # <- formally redundant but may improve introspection
 
     def clean_param_value(self, value):
         value = super(IPv4NetField, self).clean_param_value(value)
         ip, net = ip_network_as_tuple(value)
         assert isinstance(ip, unicode) and IPv4_STRICT_DECIMAL_REGEX.search(ip)
         assert isinstance(net, int) and 0 <= net <= 32
-        # returning tuple: ip is a unicode string, net is an int number
+        # returning a tuple: ip is a unicode string, net is an int number
         return ip, net
 
     def clean_result_value(self, value):
@@ -526,8 +564,66 @@ class IPv4NetField(UnicodeLimitedField, UnicodeRegexField):
             except (ValueError, TypeError):
                 raise FieldValueError(public_message=(
                     self.error_msg_template.format(ascii_str(value))))
-        # returning unicode string
+        # returning a unicode string
         return super(IPv4NetField, self).clean_result_value(value)
+
+
+class IPv6NetField(UnicodeField):
+
+    """
+    For IPv6 network specifications (CIDR), such as
+    ``2001:0db8:85a3:0000:0000:8a2e:0370:7334/32``.
+
+    Note that:
+
+    * when cleaning a parameter value --
+
+      * an (<address part as unicode string>, <net as int>) tuple is returned;
+      * the address part is normalized to an "exploded" form, such as
+        ``u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'``;
+
+    * when cleaning a result value --
+
+      * a unicode string is returned;
+      * the address part is normalized to an "compressed" form, such as
+        ``u'2001:db8:85a3::8a2e:370:7334'``.
+    """
+
+    error_msg_template = ('"{}" is not a valid CIDR '
+                          'IPv6 network specification')
+    max_length = 43  # <- not used at all but may improve introspection
+
+    def clean_param_value(self, value):
+        ipv6_network_obj = super(IPv6NetField, self).clean_param_value(value)
+        ipv6 = unicode(ipv6_network_obj.ip.exploded)
+        net = ipv6_network_obj.prefixlen
+        assert isinstance(ipv6, unicode)
+        assert isinstance(net, int) and 0 <= net <= 128
+        # returning a tuple: ipv6 is a unicode string, net is an int number
+        return ipv6, net
+
+    def clean_result_value(self, value):
+        if not isinstance(value, basestring):
+            try:
+                ip, net = value
+                value = '{}/{}'.format(ip, net)
+            except (ValueError, TypeError):
+                raise FieldValueError(public_message=(
+                    self.error_msg_template.format(ascii_str(value))))
+        ipv6_network_obj = super(IPv6NetField, self).clean_result_value(value)
+        # returning a unicode string
+        return unicode(ipv6_network_obj.compressed)
+
+    def _fix_value(self, value):
+        value = super(IPv6NetField, self)._fix_value(value)
+        try:
+            if '/' not in value:
+                raise ValueError
+            ipv6_network_obj = ipaddr.IPv6Network(value)
+        except Exception:
+            raise FieldValueError(public_message=(
+                self.error_msg_template.format(ascii_str(value))))
+        return ipv6_network_obj
 
 
 class CCField(UnicodeLimitedField, UnicodeRegexField):
@@ -538,7 +634,7 @@ class CCField(UnicodeLimitedField, UnicodeRegexField):
 
     regex = CC_SIMPLE_REGEX
     error_msg_template = '"{}" is not a valid 2-character country code'
-    max_length = 2   # <- formally redundant but improves introspection
+    max_length = 2   # <- formally redundant but may improve introspection
 
     def _fix_value(self, value):
         value = super(CCField, self)._fix_value(value)
@@ -589,6 +685,35 @@ class DomainNameField(DomainNameSubstringField, UnicodeRegexField):
 
     regex = DOMAIN_ASCII_LOWERCASE_REGEX
     error_msg_template = '"{}" is not a valid domain name'
+
+
+class EmailSimplifiedField(UnicodeLimitedField, UnicodeRegexField):
+
+    """
+    For e-mail addresses.
+
+    (Note: values are *not* normalized in any way, especially the domain
+    part is *not* IDNA-encoded or lower-cased.)
+    """
+
+    max_length = 254
+    regex = EMAIL_SIMPLIFIED_REGEX
+    error_msg_template = '"{}" is not a valid e-mail address'
+
+
+class IBANSimplifiedField(UnicodeLimitedField, UnicodeRegexField):
+
+    """
+    For International Bank Account Numbers.
+    """
+
+    regex = IBAN_REGEX
+    error_msg_template = '"{}" is not a valid IBAN'
+    max_length = 34   # <- formally redundant but may improve introspection
+
+    def _fix_value(self, value):
+        value = super(IBANSimplifiedField, self)._fix_value(value)
+        return value.upper()
 
 
 class IntegerField(Field):
@@ -742,61 +867,85 @@ class DictResultField(Field):
 
     """
     A base class for fields whose result values are supposed to be
-    dictionaries (whose fixed structure is defined by
-    :attr:`key_to_subfield_factory` and :attr:`required_keys`).
+    dictionaries.
 
     The constructor-argument-or-subclass-attribute
-    :attr:`key_to_subfield_factory` (a dictionary that maps subfield
-    names to subfield factories or classes) is obligatory.
+    :attr:`key_to_subfield_factory` can be:
+
+    * specified as a dictionary that maps *subfield names* to
+      *factories* (typically, Field subclasses) -- then result
+      dictionaries are constrained and cleaned in the following way:
+
+      * each *key* must be one of the *subfield names*,
+      * each *value* is cleaned with :meth:`clean_result_value` of the
+        field object produced by the corresponding *factory*;
+
+    * left as :obj:`None` -- then there are no constraints about
+      structure and content of result dictionaries.
     """
 
     key_to_subfield_factory = None
-    required_keys = frozenset()
 
     def __init__(self, **kwargs):
         super(DictResultField, self).__init__(**kwargs)
         if self.key_to_subfield_factory is None:
-            raise TypeError(
-                  "'key_to_subfield_factory' not specified for {} (neither "
-                  "as a class attribute nor as a constructor argument)"
-                  .format(self.__class__.__name__))
-        self.key_to_subfield = {
-            key.decode('ascii'): factory()
-            for key, factory in self.key_to_subfield_factory.iteritems()}
+            self.key_to_subfield = None
+        else:
+            self.key_to_subfield = {
+                key.decode('ascii'): factory()
+                for key, factory in self.key_to_subfield_factory.iteritems()}
 
     def clean_param_value(self, value):
-        """Always raises :exc:`~exceptions.NotImplementedError`."""
-        raise NotImplementedError("it's a result-only field")
+        """Always raises :exc:`~exceptions.TypeError`."""
+        raise TypeError("it's a result-only field")
 
     def clean_result_value(self, value):
         value = super(DictResultField, self).clean_result_value(value)
         if not isinstance(value, collections.Mapping):
             raise TypeError('{!r} is not a mapping'.format(value))
-        keys = set(value)
-        illegal_keys = keys - self.key_to_subfield.viewkeys()
-        if illegal_keys:
-            illegal_keys_repr = ', '.join(sorted(illegal_keys))
+        keys = frozenset(value)
+        illegal_keys_repr = self._get_illegal_keys_repr(keys)
+        if illegal_keys_repr:
             raise ValueError(
                   '{!r} contains illegal keys ({!r})'.format(
                       value,
                       illegal_keys_repr))
-        missing_keys = self.required_keys - keys
-        if missing_keys:
-            missing_keys_repr = ', '.join(sorted(missing_keys))
+        missing_keys_repr = self._get_missing_keys_repr(keys)
+        if missing_keys_repr:
             raise ValueError(
                   '{!r} does not contain required keys ({!r})'.format(
                       value,
                       missing_keys_repr))
+        if self.key_to_subfield is None:
+            return {
+                k.decode('ascii'): v
+                for k, v in value.iteritems()}
         return {
             k.decode('ascii'): self.key_to_subfield[k].clean_result_value(v)
             for k, v in value.iteritems()}
 
+    def _get_illegal_keys_repr(self, keys):
+        if self.key_to_subfield is not None:
+            illegal_keys = keys - self.key_to_subfield.viewkeys()
+            return ', '.join(sorted(illegal_keys))
+        return ''
 
-class AddressField(ResultListFieldMixin, DictResultField):
+    def _get_missing_keys_repr(self, keys):
+        return ''
+
+
+class ListOfDictsField(ResultListFieldMixin, DictResultField):
 
     """
-    For lists of dictionaries containing ``ip`` and optionally ``cc``
-    and/or ``asn``.
+    For lists of dictionaries containing arbitrary values.
+    """
+
+
+class AddressField(ListOfDictsField):
+
+    """
+    For lists of dictionaries -- each containing ``"ip"`` and optionally
+    ``"cc"`` and/or ``"asn"``.
     """
 
     key_to_subfield_factory = {
@@ -804,4 +953,53 @@ class AddressField(ResultListFieldMixin, DictResultField):
         u'cc': CCField,
         u'asn': ASNField,
     }
-    required_keys = {u'ip'}
+
+    def _get_missing_keys_repr(self, keys):
+        if 'ip' not in keys:
+            return 'ip'
+        return ''
+
+
+class DirField(UnicodeEnumField):
+
+    """
+    For ``dir`` values in items cleaned by of
+    :class:`ExtendedAddressField` instances (``dir`` marks role of the
+    address in terms of the direction of the network flow in layers 3 or
+    4).
+    """
+
+    enum_values = ('src', 'dst')
+
+
+class ExtendedAddressField(ListOfDictsField):
+
+    """
+    For lists of dictionaries -- each containing either ``"ip"`` or
+    ``"ipv6"`` (but not both), and optionally all or some of: ``"cc"``,
+    ``"asn"``, ``"dir"``, ``"rdns"``.
+    """
+
+    key_to_subfield_factory = {
+        u'ip': IPv4Field,
+        u'ipv6': IPv6Field,
+        u'cc': CCField,
+        u'asn': ASNField,
+        u'dir': DirField,
+        u'rdns': DomainNameField,
+    }
+
+    def _get_illegal_keys_repr(self, keys):
+        illegal_keys_repr = super(ExtendedAddressField,
+                                  self)._get_illegal_keys_repr(keys)
+        if 'ip' in keys and 'ipv6' in keys:
+            if illegal_keys_repr:
+                illegal_keys_repr += '; '
+            illegal_keys_repr += (
+                'ip / ipv6 [only one of these two should be specified]')
+        return illegal_keys_repr
+
+    def _get_missing_keys_repr(self, keys):
+        if 'ip' not in keys and 'ipv6' not in keys:
+            return 'ip / ipv6 [one of these two should be specified]'
+        return ''

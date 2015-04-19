@@ -16,16 +16,21 @@ from pyramid.decorator import reify
 
 from n6sdk.data_spec.fields import (
     Field,
-    AddressField,
     AnonymizedIPv4Field,
     ASNField,
     CCField,
     DateTimeField,
     DomainNameField,
     DomainNameSubstringField,
+    EmailSimplifiedField,
+    ExtendedAddressField,
+    IBANSimplifiedField,
     IntegerField,
     IPv4Field,
     IPv4NetField,
+    IPv6Field,
+    IPv6NetField,
+    ListOfDictsField,
     MD5Field,
     PortField,
     SHA1Field,
@@ -64,20 +69,28 @@ CONFIDENCE_ENUMS = (
 #: A tuple of network incident category labels
 #: -- used in the :attr:`DataSpec.category` field specification.
 CATEGORY_ENUMS = (
+    'amplifier',
     'bots',
+    'backdoor',
     'cnc',
+    'dns-query',
     'dos-attacker',
     'dos-victim',
+    'flow',
+    'flow-anomaly',
+    'fraud',
+    'leak',
     'malurl',
     'phish',
     'proxy',
-    'resolver',
     'sandbox-url',
     'scanning',
     'server-exploit',
     'spam',
     'spam-url',
     'tor',
+    'vulnerable',
+    'webinject',
     'other',
 )
 
@@ -322,18 +335,27 @@ class BaseDataSpec(object):
             assert key in self._all_param_fields
             assert key in params
             field = self._all_param_fields[key]
-            raw_value = params[key]
-            param_values = field._split_raw_param_value(raw_value)
+            param_values = params[key]
             assert param_values and type(param_values) is list
             assert hasattr(field, 'single_param')
-            try:
-                if field.single_param and len(param_values) > 1:
-                    raise FieldValueError(public_message=(
+            if field.single_param and len(param_values) > 1:
+                error_info_seq.append((
+                    key,
+                    param_values,
+                    FieldValueError(public_message=(
                         u'Multiple values for a single-value-only field.'))
-                yield key, [field.clean_param_value(value)
-                            for value in param_values]
-            except Exception as exc:
-                error_info_seq.append((key, raw_value, exc))
+                ))
+            else:
+                cleaned_values = []
+                for value in param_values:
+                    try:
+                        cleaned_val = field.clean_param_value(value)
+                    except Exception as exc:
+                        error_info_seq.append((key, value, exc))
+                    else:
+                        cleaned_values.append(cleaned_val)
+                if cleaned_values:
+                    yield key, cleaned_values
         if error_info_seq:
             raise ParamValueCleaningError(error_info_seq)
 
@@ -414,11 +436,35 @@ class DataSpec(BaseDataSpec):
         in_result='required',
 
         extra_params=dict(
-            min=DateTimeField(           # `time.min`
+            min=DateTimeField(          # `time.min`
                 in_params='optional',
                 single_param=True,
             ),
-            max=DateTimeField(           # `time.max`
+            max=DateTimeField(          # `time.max`
+                in_params='optional',
+                single_param=True,
+            ),
+            until=DateTimeField(        # `time.until`
+                in_params='optional',
+                single_param=True,
+            ),
+        ),
+    )
+
+    modified = DateTimeField(
+        in_params=None,
+        in_result='optional',
+
+        extra_params=dict(
+            min=DateTimeField(          # `modified.min`
+                in_params='optional',
+                single_param=True,
+            ),
+            max=DateTimeField(          # `modified.max`
+                in_params='optional',
+                single_param=True,
+            ),
+            until=DateTimeField(        # `modified.until`
                 in_params='optional',
                 single_param=True,
             ),
@@ -444,9 +490,11 @@ class DataSpec(BaseDataSpec):
     )
 
     #
-    # An `address` is a list of dicts containing `ip` + optionally: `asn`, `cc`
+    # An `address` is a list of dicts -- each containing either
+    # `ip` or `ipv6` (but not both) and optionally some or all of:
+    # `asn`, `cc`, `dir`, `rdns`
 
-    address = AddressField(
+    address = ExtendedAddressField(
         in_params=None,
         in_result='optional',
     )
@@ -459,7 +507,18 @@ class DataSpec(BaseDataSpec):
         in_result=None,
 
         extra_params=dict(
-            net=IPv4NetField(                # `ip.net`
+            net=IPv4NetField(           # `ip.net`
+                in_params='optional',
+            ),
+        ),
+    )
+
+    ipv6 = IPv6Field(
+        in_params='optional',
+        in_result=None,
+
+        extra_params=dict(
+            net=IPv6NetField(           # `ipv6.net`
                 in_params='optional',
             ),
         ),
@@ -483,7 +542,7 @@ class DataSpec(BaseDataSpec):
         in_result='optional',
 
         extra_params=dict(
-            sub=URLSubstringField(           # `url.sub`
+            sub=URLSubstringField(      # `url.sub`
                 in_params='optional',
             ),
         ),
@@ -494,7 +553,7 @@ class DataSpec(BaseDataSpec):
         in_result='optional',
 
         extra_params=dict(
-            sub=DomainNameSubstringField(    # `fqdn.sub`
+            sub=DomainNameSubstringField(   # `fqdn.sub`
                 in_params='optional',
             ),
         ),
@@ -536,8 +595,52 @@ class DataSpec(BaseDataSpec):
         in_result='optional',
     )
 
+    injects = ListOfDictsField(
+        in_params=None,
+        in_result='optional',
+    )
+
+    registrar = UnicodeLimitedField(
+        in_params='optional',
+        in_result='optional',
+        max_length=100,
+    )
+
+    url_pattern = UnicodeLimitedField(
+        in_params='optional',
+        in_result='optional',
+        max_length=255,
+    )
+
+    username = UnicodeLimitedField(
+        in_params='optional',
+        in_result='optional',
+        max_length=64,
+    )
+
+    x509fp_sha1 = SHA1Field(
+        in_params='optional',
+        in_result='optional',
+    )
+
     #
     # Others...
+
+    email = EmailSimplifiedField(
+        in_params='optional',
+        in_result='optional',
+    )
+
+    iban = IBANSimplifiedField(
+        in_params='optional',
+        in_result='optional',
+    )
+
+    phone = UnicodeLimitedField(
+        in_params='optional',
+        in_result='optional',
+        max_length=20,
+    )
 
     expires = DateTimeField(
         in_params=None,
@@ -549,11 +652,15 @@ class DataSpec(BaseDataSpec):
         in_result=None,
 
         extra_params=dict(
-            min=DateTimeField(               # `active.min`
+            min=DateTimeField(          # `active.min`
                 in_params='optional',
                 single_param=True,
             ),
-            max=DateTimeField(               # `active.max`
+            max=DateTimeField(          # `active.max`
+                in_params='optional',
+                single_param=True,
+            ),
+            until=DateTimeField(        # `active.until`
                 in_params='optional',
                 single_param=True,
             ),

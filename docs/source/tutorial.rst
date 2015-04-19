@@ -101,8 +101,8 @@ Then, we can install the *n6sdk* library:
    $ python setup.py install
 
 ...as well as our new Python package -- for development (please note
-that for this package the setup command will be ``develop``, not
-``install``):
+that here, for this package, the setup command will be ``develop``,
+not ``install``):
 
 .. code-block:: bash
 
@@ -138,12 +138,12 @@ following data processing is performed on the server side:
 
    *n6sdk* uses the *Pyramid* library (see:
    http://docs.pylonsproject.org/en/latest/docs/pyramid.html) to
-   perform processing related to HTTP communication and request
-   routing (especially, deciding what function shall be invoked with
-   what parameters depending on the given URL), however there are the
-   *n6sdk*-specific wrappers and helpers used to configure some
-   important factors:
-   :class:`n6sdk.pyramid_commons.DefaultStreamViewBase`,
+   perform processing related to HTTP communication, request data (for
+   example, extracting query parameters from the URL's query string)
+   and routing (deciding what function shall be invoked with what
+   arguments depending on the given URL) -- however there are the
+   *n6sdk*-specific wrappers and helpers used to adjust some important
+   factors: :class:`n6sdk.pyramid_commons.DefaultStreamViewBase`,
    :class:`n6sdk.pyramid_commons.HttpResource` and
    :class:`n6sdk.pyramid_commons.ConfigHelper` (see below:
    :ref:`gluing_it_together`).  These three classes can be customized
@@ -160,11 +160,17 @@ following data processing is performed on the server side:
    ``"anonymous"``); it can be replaced with a custom one (see below:
    :ref:`custom_authn_policy`).
 
+   The result is an object containing authentication data.
+
 3. **Cleaning query parameters provided by the client**
 
    Here "cleaning" means: validation and adjustment (normalization) of
-   the parameters.  An instance of a *data specification class* (see
-   below: :ref:`data_spec_class`) is responsible for doing that.
+   the parameters (already extracted from the request's URL).
+
+   An instance of a *data specification class* (see below:
+   :ref:`data_spec_class`) is responsible for doing that.
+
+   The result is a dictionary containing the cleaned query parameters.
 
 4. **Retrieving result data from the data backend API**
 
@@ -172,21 +178,26 @@ following data processing is performed on the server side:
    data storage, needs to be implemented as a class (see below:
    :ref:`data_backend_api`).
 
-   For a client request, an appropriate method of this class is called
-   with authentication data (see above: *2. Optional authentication*)
-   and cleaned client query parameters (see above: *3. Cleaning query
-   parameters...*) as call arguments.  The result of the call is an
-   iterator which yields dictionaries, each containing data of one
-   network incident.
+   For a client request (see above: *1. Receiving the HTTP request*),
+   an appropriate method of the sole instance of this class is called
+   with the authentication data (see above: *2. Authentication*) and
+   the cleaned client query parameters dictionary (see above:
+   *3. Cleaning query parameters...*) as call arguments.
+
+   The result of the call is an iterator which yields dictionaries,
+   each containing the data of one network incident.
 
 5. **Cleaning the result data**
 
    Each of the yielded dictionaries is cleaned.  Here "cleaning"
    means: validation and adjustment (normalization) of the result
-   data.  An instance of a *data specification class* (see below:
+   data.
+
+   An instance of a *data specification class* (see below:
    :ref:`data_spec_class`) is responsible for doing that.
 
-   The result is another iterator.
+   The result is another iterator (which yields dictionaries,
+   each containing cleaned data of one network incident).
 
 6. **Rendering the HTTP response**
 
@@ -218,9 +229,9 @@ Basics
 
 A *data specification* determines:
 
-* how query (search) parameters from a client (specified as the query
-  string part of the URL of a HTTP request) are cleaned before being
-  passed in to the data backend API -- that is:
+* how query parameters (already extracted from the query string part
+  of the URL of a client HTTP request) are cleaned (before being
+  passed in to the data backend API) -- that is:
 
   * what are the legal parameter names;
   * whether particular parameters are required or optional;
@@ -228,8 +239,7 @@ A *data specification* determines:
     ``time.min`` value must be a valid *ISO-8601*-formatted date and
     time);
   * whether, for a particular parameter, there can be many alternative
-    values (comma-separated within a parameter item of the URL's query
-    string) or only one value (e.g.: ``time.min`` can have only one
+    values or only one value (e.g.: ``time.min`` can have only one
     value, and ``ip`` can have multiple values);
   * how particular parameter values are normalized (e.g.: a
     ``time.min`` value is always transformed to a Python
@@ -237,8 +247,8 @@ A *data specification* determines:
     information to UTC);
 
 * how result dictionaries (each containing data of one incident)
-  yielded by the data backend API are cleaned before being passed in
-  to a response renderer -- that is:
+  yielded by the data backend API are cleaned (before being passed in
+  to a response renderer) -- that is:
 
   * what are the legal result keys;
   * whether particular items are required or optional;
@@ -282,10 +292,14 @@ of the :class:`n6sdk.data_spec.DataSpec` source code::
                     in_params='optional',
                     single_param=True,
                 ),
+                until=DateTimeField(         # `time.until`
+                    in_params='optional',
+                    single_param=True,
+                ),
             ),
         )
 
-        address = AddressField(
+        address = ExtendedAddressField(
             in_params=None,
             in_result='optional',
         )
@@ -335,11 +349,11 @@ What do we see above:
    **not** a legal query parameter, and it is **required** as an item
    of a result dictionary.
 
-3. ``time.min`` and ``time.max`` are date-and-time fields (as their
-   declarations are instances of
+3. ``time.min``, ``time.max`` and ``time.until`` are date-and-time
+   fields (as their declarations are instances of
    :class:`n6sdk.data_spec.fields.DateTimeField`). They are
    **optional** as query parameters, and they are **not** legal items
-   of a result dictionary. Unlike most of other fields, these two
+   of a result dictionary.  Unlike most of other fields, these three
    fields do not allow to specify multiple query parameter values
    (note the constructor argument `single_param` set to ``True``).
 
@@ -424,13 +438,17 @@ respectively:
 
 * for :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` -- a
   **dictionary of query parameters** (representing one client
-  request); the dictionary maps query parameter names to their raw
-  values (taken directly from the URL query string; a *raw value* can
-  consist of several comma-separated *actual values*);
+  request); the dictionary maps field names (query parameter names)
+  to **lists of their raw values** (lists -- because, as it
+  was said, for most fields there can be more than one query
+  parameter value);
 
 * for :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` -- a
   **single result dictionary** (representing one network incident);
-  the dictionary maps result keys to their values.
+  the dictionary maps field names (result keys) to **their raw
+  values**.
+
+(Here "raw" is a synonym of "uncleaned".)
 
 Each of these methods also accepts the following *optional keyword-only
 arguments*:
@@ -442,28 +460,31 @@ arguments*:
   not contain them either);
 
 * `forbidden_keys` -- an iterable of keys that *must not apperar* in
-  the processed dictionary or a validation error (respectively:
-  :exc:`.ParamKeyCleaningError` or :exc:`.ResultKeyCleaningError`)
-  will be raised;
+  the processed dictionary;
 
 * `extra_required_keys` -- an iterable of keys that *must appear* in
-  the processed dictionary or a validation error (respectively:
-  :exc:`.ParamKeyCleaningError` or :exc:`.ResultKeyCleaningError`)
-  will be raised;
+  the processed dictionary;
 
 * `discarded_keys` -- an iterable of keys that will be removed
-  (discarded) *after* validation of the processed dictionary keys (and
-  *before* cleaning of the processed dictionary values).
+  (discarded) *after* validation of the processed dictionary keys (but
+  *before* cleaning the values).
 
-Each of these methods returns *a new dictionary* (in other words, the
-input dictionary given as the positional argument *is not modified*).
-Regarding returned dictionaries:
+If a raw value is not valid and cannot be cleaned (see below:
+:ref:`field_cleaning_methods`) or any other data specification
+constraint is violated (including those specified with the
+`forbidden_keys` and `extra_required_keys` arguments mentioned above)
+an exception -- respectively: :exc:`.ParamKeyCleaningError` or
+:exc:`.ParamValueCleaningError`, or :exc:`.ResultKeyCleaningError`, or
+:exc:`.ResultValueCleaningError` -- is raised.
+
+Otherwise, *a new dictionary* is returned (the input dictionary given
+as the positional argument *is not modified*).  Regarding returned
+dictionaries:
 
 * a dictionary returned by
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` maps field
   names (query parameter names) to **lists of cleaned query parameter
-  values** (because, as it was said, for most fields there can be more
-  than one query parameter value);
+  values**;
 
 * a dictionary returned by
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` (containing
@@ -480,13 +501,13 @@ The most important methods of any *field* (an instance of
 :class:`n6sdk.data_spec.fields.Field` or of its subclass) are:
 
 * :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` --
-  called to clean a single (*actual*) query parameter value;
+  called to clean a single query parameter value;
 
 * :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` --
   called to clean a single result value.
 
 Each of these methods takes exactly *one positional argument*: a
-single uncleaned value.
+single uncleaned (raw) value.
 
 Each of these methods returns *a single value*: a cleaned one.
 
@@ -495,20 +516,20 @@ following way:
 
 * The data specification's method
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` (described
-  above in the :ref:`data_spec_cleaning_methods` section), **for each
-  actual value extracted from a query parameter's raw value** (a *raw
-  value* can consist of several comma-separated *actual values*) **taken
-  from the dictionary passed as the argument**, calls the
-  :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` method of the
-  appropriate field.
+  above in the :ref:`data_spec_cleaning_methods` section) calls the
+  :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` method of
+  the appropriate field -- separately **for each element of each of
+  the raw value lists taken from the dictionary passed as the
+  argument**.
 
   If the field's method raises (or propagates) an exception being an
   instance/subclass of :exc:`~exceptions.Exception` (i.e., practically
   *any* exception, excluding :exc:`~exceptions.KeyboardInterrupt`,
   :exc:`~exceptions.SystemExit` and a few others), the data
   specification's method
-  :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` catches it
-  (and possibly similar exceptions from other fields) and then raises
+  :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` catches and
+  collects it (doing the same for any such exceptions raised for other
+  values, possibly for other fields) and then raises
   :exc:`.ParamValueCleaningError`.
 
   .. note::
@@ -522,19 +543,19 @@ following way:
 
 * the data specification's method
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` (described
-  above in the :ref:`data_spec_cleaning_methods` section) **for each
-  value from the dictionary passed as the argument**, calls the
-  :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method of the
-  appropriate field.
+  above in the :ref:`data_spec_cleaning_methods` section) calls the
+  :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method of
+  the appropriate field -- separately **for each raw value from the
+  dictionary passed as the argument**.
 
   If the field's method raises (or propagates) an exception being an
   instance/subclass of :exc:`~exceptions.Exception` (i.e., practically
   *any* exception, excluding :exc:`~exceptions.KeyboardInterrupt`,
   :exc:`~exceptions.SystemExit` and a few others), the data
   specification's method
-  :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` catches it
-  (and possibly similar exceptions from other fields) and then raises
-  :exc:`.ResultValueCleaningError`.
+  :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` catches and
+  collects it (doing the same for any such exceptions raised for other
+  fields) and then raises :exc:`.ResultValueCleaningError`.
 
   .. note::
 
@@ -552,13 +573,14 @@ following way:
      safe default: ``u"Internal error."``).
 
      The rationale for this behaviour is that any exceptions related
-     to *result cleaning* are strictly internal (contrary to *query
-     parameter cleaning*).
+     to *result cleaning* are strictly internal (contrary to those
+     related to *query parameter cleaning*).
 
-     Thanks to this behaviour, much of the field classes's code
-     related to parameter value cleaning could be used also for result
-     value cleaning without concern about disclosing some sensitive
-     details in :attr:`~.ResultValueCleaningError.public_message` of
+     Thanks to this behaviour, much of the code of field classes that
+     is related to parameter value cleaning can also be used for
+     result value cleaning without concern about disclosing some
+     sensitive details in
+     :attr:`~.ResultValueCleaningError.public_message` of
      :exc:`~.ResultValueCleaningError`.
 
      .. warning::
@@ -587,12 +609,7 @@ by the class:
   * *in result:* **required**
   * *field class:* :class:`.UnicodeLimitedField`
   * *specific field constructor arguments:* ``max_length=64``
-  * *param cleaning example:*
-
-    * *query string item:* ``id=abcDEF,42,x-y-z``
-    * *list of cleaned values:* ``[u"abcDEF", u"42", u"x-y-z"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"abcDEF... \xc5\x81"``
     * *cleaned value:* ``u"abcDEF... \u0141"``
@@ -605,12 +622,7 @@ by the class:
   * *in params:* **optional**
   * *in result:* **required**
   * *field class:* :class:`.SourceField`
-  * *param cleaning example:*
-
-    * *query string item:* ``source=some-org.some-type,foo.bar``
-    * *list of cleaned values:* ``[u"some-org.some-type", u"foo.bar"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"some-org.some-type"``
     * *cleaned value:* ``u"some-org.some-type"``
@@ -626,12 +638,7 @@ by the class:
   * *in result:* **required**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.RESTRICTION_ENUMS``
-  * *param cleaning example:*
-
-    * *query string item:* ``restriction=public``
-    * *list of cleaned values:* ``[u"public"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"public"``
     * *cleaned value:* ``u"public"``
@@ -645,14 +652,9 @@ by the class:
   * *in result:* **required**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CONFIDENCE_ENUMS``
-  * *param cleaning example:*
+  * *param/result cleaning example:*
 
-    * *query string item:* ``confidence=medium,low``
-    * *list of cleaned values:* ``[u"medium", u"low"]``
-
-  * *result cleaning example:*
-
-    * *raw value:* ``u"medium"``
+    * *raw value:* ``"medium"``
     * *cleaned value:* ``u"medium"``
 
   Data confidence qualifier.  One of: ``"high"``, ``"medium"`` or
@@ -664,12 +666,7 @@ by the class:
   * *in result:* **required**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CATEGORY_ENUMS``
-  * *param cleaning example:*
-
-    * *query string item:* ``category=bots,cnc``
-    * *list of cleaned values:* ``[u"bots", u"cnc"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"bots"``
     * *cleaned value:* ``u"bots"``
@@ -704,12 +701,12 @@ by the class:
   * *field class:* :class:`.DateTimeField`
   * *param cleaning examples:*
 
-    * *example synonymous query string items:*
+    * *example synonymous raw values:*
 
-      * ``time.min=2014-11-06T01:13+02:00`` or
-      * ``time.min=2014-11-05 23:13:00.000000``
+      * ``"2014-11-06T01:13+02:00"`` or
+      * ``u"2014-11-05 23:13:00.000000"``
 
-    * *list of cleaned values:* ``[datetime.datetime(2014, 11, 5, 23, 13, 0)]``
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
   The *earliest* time the queried incidents *occurred* at.  Value
   cleaning includes conversion to UTC time.
@@ -721,15 +718,107 @@ by the class:
   * *field class:* :class:`.DateTimeField`
   * *param cleaning examples:*
 
-    * *example synonymous query string items:*
+    * *example synonymous raw values:*
 
-      * ``time.max=2014-11-06T01:13+02:00`` or
-      * ``time.max=2014-11-05 23:13:00.000000``
+      * ``u"2014-11-06T01:13+02:00"`` or
+      * ``"2014-11-05 23:13:00.000000"``
 
-    * *list of cleaned values:* ``[datetime.datetime(2014, 11, 5, 23, 13, 0)]``
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
   The *latest* time the queried incidents *occurred* at.  Value
   cleaning includes conversion to UTC time.
+
+* ``time.until``:
+
+  * *in params:* **optional, single**
+  * *in result:* N/A
+  * *field class:* :class:`.DateTimeField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``u"2014-11-06T01:13+02:00"`` or
+      * ``"2014-11-05 23:13:00.000000"``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The time the queried incidents *occurred before* (i.e., exclusive; a
+  handy replacement for ``time.max`` in some cases).  Value cleaning
+  includes conversion to UTC time.
+
+* ``modified``
+
+  * *in params:* N/A
+  * *in result:* **optional**
+  * *field class:* :class:`.DateTimeField`
+  * *result cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      *  ``"2014-11-05T23:13:00.000000"`` or
+      *  ``"2014-11-06 01:13+02:00"`` or
+      *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
+      *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The time when the incident data was *made available through the API
+  or modified*.  Value cleaning includes conversion to UTC time.
+
+* ``modified.min``:
+
+  * *in params:* **optional, single**
+  * *in result:* N/A
+  * *field class:* :class:`.DateTimeField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``"2014-11-06T01:13+02:00"`` or
+      * ``u"2014-11-05 23:13:00.000000"``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The *earliest* time the queried incidents were *made available
+  through the API or modified* at.  Value cleaning includes conversion
+  to UTC time.
+
+* ``modified.max``:
+
+  * *in params:* **optional, single**
+  * *in result:* N/A
+  * *field class:* :class:`.DateTimeField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``u"2014-11-06T01:13+02:00"`` or
+      * ``"2014-11-05 23:13:00.000000"``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The *latest* time the queried incidents were *made available through
+  the API or modified* at.  Value cleaning includes conversion to UTC
+  time.
+
+* ``modified.until``:
+
+  * *in params:* **optional, single**
+  * *in result:* N/A
+  * *field class:* :class:`.DateTimeField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``u"2014-11-06T01:13+02:00"`` or
+      * ``"2014-11-05 23:13:00.000000"``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The time the queried incidents were *made available through the API
+  or modified* before (i.e., exclusive; a handy replacement for
+  ``modified.max`` in some cases).  Value cleaning includes conversion
+  to UTC time.
 
 * ``origin``:
 
@@ -737,14 +826,9 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.ORIGIN_ENUMS``
-  * *param cleaning example:*
+  * *param/result cleaning example:*
 
-    * *query string item:* ``origin=honeypot``
-    * *list of cleaned values:* ``[u"honeypot"]``
-
-  * *result cleaning example:*
-
-    * *raw value:* ``u"honeypot"``
+    * *raw value:* ``"honeypot"``
     * *cleaned value:* ``u"honeypot"``
 
   Incident origin label (some examples: ``"p2p-crawler"``,
@@ -756,12 +840,7 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeLimitedField`
   * *specific field constructor arguments:* ``max_length=255``
-  * *param cleaning example:*
-
-    * *query string item:* ``name=LoremIpsuM``
-    * *list of cleaned values:* ``[u"LoremIpsuM"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"LoremIpsuM"``
     * *cleaned value:* ``u"LoremIpsuM"``
@@ -775,12 +854,7 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeLimitedField`
   * *specific field constructor arguments:* ``max_length=100``
-  * *param cleaning example:*
-
-    * *query string item:* ``target=LoremIpsuM``
-    * *list of cleaned values:* ``[u"LoremIpsuM"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"LoremIpsuM"``
     * *cleaned value:* ``u"LoremIpsuM"``
@@ -788,31 +862,65 @@ by the class:
   Name of phishing target (organization, brand etc.). Maximum length:
   100 characters (after cleaning).
 
+.. _field_spec_address:
+
 * ``address``
 
   * *in params:* N/A
   * *in result:* **optional**
-  * *field class:* :class:`.AddressField`
+  * *field class:* :class:`.ExtendedAddressField`
   * *result cleaning examples:*
 
     * *example synonymous raw values:*
 
-      * ``[{"ip": "123.10.234.168"}, {"ip": "123.10.234.169", "asn": 999998}]`` or
-      * ``[{u"ip": "123.10.234.168"}, {"ip": "123.10.234.169", u"asn": "999998"}]`` or
-      * ``[{"ip": "123.10.234.168"}, {u"ip": "123.10.234.169", u"asn": "15.16958"}]``
+      * ``[{"ipv6": "::1"}, {"ip": "123.10.234.169", "asn": 999998}]`` or
+      * ``[{u"ipv6": "::0001"}, {"ip": "123.10.234.169", u"asn": "999998"}]`` or
+      * ``[{"ipv6": "0000:0000::0001"}, {u"ip": "123.10.234.169", u"asn": "15.16958"}]``
 
-    * *cleaned value:* ``[{u"ip": u"123.10.234.168"}, {u"ip": "123.10.234.169", u"asn": 999998}]``
+    * *cleaned value:* ``[{u"ipv6": u"::1"}, {u"ip": "123.10.234.169", u"asn": 999998}]``
 
   Set of network addresses related to the returned incident (e.g., for
-  malicious web sites: taken from DNS *A* records; for
+  malicious web sites: taken from DNS *A* or *AAAA* records; for
   sinkhole/scanning: communication source addresses) -- in the form of
-  a list of dictionaries, each containing ``"ip"`` (IPv4 address in
-  quad-dotted decimal notation, cleaned using a subfield being an
-  instance of :class:`.IPv4Field`), and optionally: ``"asn"``
-  (autonomous system number in the form of a number or two numbers
-  separated with a dot, cleaned using a subfield being an instance of
-  :class:`.ASNField`) and/or ``"cc"`` (two-letter country code,
-  cleaned using a subfield being an instance of :class:`.CCField`).
+  a list of dictionaries, each containing:
+
+  * obligatorily:
+    
+    * either ``"ip"`` (IPv4 address in quad-dotted decimal notation,
+      cleaned using a subfield being an instance of
+      :class:`.IPv4Field`)
+
+    * or ``"ipv6"`` (IPv6 address in the standard text representation,
+      cleaned using a subfield being an instance of
+      :class:`.IPv6Field`)
+    
+    -- but *not* both ``"ip"`` and ``"ipv6"``;
+  
+  * plus optionally -- all or some of:
+
+    * ``"asn"`` (autonomous system number in the form of a number or
+      two numbers separated with a dot, cleaned using a subfield being
+      an instance of :class:`.ASNField`),
+
+    * ``"cc"`` (two-letter country code, cleaned using a subfield
+      being an instance of :class:`.CCField`),
+    
+    * ``"dir"`` (the indicator of the address role in terms of the
+      direction of the network flow in layers 3 or 4; one of:
+      ``"src"``, ``"dst"``; cleaned using a subfield being an instance
+      of :class:`.DirField`),
+
+    * ``"rdns"`` (the domain name from the PTR record of the
+      ``.in-addr-arpa`` domain associated with the IP address, without
+      the trailing dot; cleaned using a subfield being an instance of
+      :class:`.DomainNameField`).
+
+  .. note::
+  
+     The cleaned IPv6 addresses is in the "condensed" form of -- in
+     contrast to the "exploded" form used for :ref:`ipv6
+     <field_spec_ipv6>` and :ref:`ipv6.net <field_spec_ipv6_net>`
+     *param cleaning*.
 
 * ``ip``:
 
@@ -821,8 +929,8 @@ by the class:
   * *field class:* :class:`.IPv4Field`
   * *param cleaning example:*
 
-    * *query string item:* ``ip=123.10.234.168,123.10.234.169``
-    * *list of cleaned values:* ``[u"123.10.234.168", u"123.10.234.169"]``
+    * *raw value:* ``"123.10.234.168"``
+    * *cleaned value:* ``u"123.10.234.168"``
 
   IPv4 address (in quad-dotted decimal notation) related to the
   queried incidents.
@@ -834,21 +942,79 @@ by the class:
   * *field class:* :class:`.IPv4NetField`
   * *param cleaning example:*
 
-    * *query string item:* ``ip.net=123.10.234.0/24,12.34.0.0/16``
-    * *list of cleaned values:* ``[(u"123.10.234.0", 24), (u"12.34.0.0", 16)]``
+    * *raw value:* ``"123.10.234.0/24"``
+    * *cleaned value:* ``(u"123.10.234.0", 24)``
 
   IPv4 network (in CIDR notation) containing IP addresses related to
   the queried incidents.
+
+.. _field_spec_ipv6:
+
+* ``ipv6``:
+
+  * *in params:* **optional**
+  * *in result:* N/A
+  * *field class:* :class:`.IPv6Field`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``u"abcd::1"`` or
+      * ``"ABCD::1"`` or
+      * ``u"ABCD:0000:0000:0000:0000:0000:0000:0001"``
+      * ``"abcd:0000:0000:0000:0000:0000:0000:0001"`` or
+
+    * *cleaned value:* ``u"abcd:0000:0000:0000:0000:0000:0000:0001"``
+
+  IPv6 address (in the standard text representation) related to the
+  queried incidents.
+
+  .. note::
+  
+     Cleaned values are in the "exploded" form -- in contrast to the
+     "condensed" form used for :ref:`address <field_spec_address>`
+     *result cleaning*.
+
+.. _field_spec_ipv6_net:
+
+* ``ipv6.net``:
+
+  * *in params:* **optional**
+  * *in result:* N/A
+  * *field class:* :class:`.IPv6NetField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``"abcd::1/128"`` or
+      * ``u"ABCD::1/128"`` or
+      * ``"ABCD:0000:0000:0000:0000:0000:0000:0001/128"``
+      * ``u"abcd:0000:0000:0000:0000:0000:0000:0001/128"`` or
+
+    * *cleaned value:* ``(u"abcd:0000:0000:0000:0000:0000:0000:0001", 128)``
+
+  IPv6 network (in CIDR notation) containing IPv6 addresses related to
+  the queried incidents.
+
+  .. note::
+  
+     The address part of each cleaned value is in the "exploded" form
+     -- in contrast to the "condensed" form used for :ref:`address
+     <field_spec_address>` *result cleaning*.
 
 * ``asn``:
 
   * *in params:* **optional**
   * *in result:* N/A
   * *field class:* :class:`.ASNField`
-  * *param cleaning example:*
+  * *param cleaning examples:*
 
-    * *query string item:* ``asn=123,999999,15.16958``
-    * *list of cleaned values:* ``[123, 999999, 999998]``
+    * *example synonymous raw values:*
+
+      * ``u"999998"`` or
+      * ``u"15.16958"``
+
+    * *cleaned value:* ``999998``
 
   Autonomous system number of IP addresses related to the queried
   incidents; in the form of a number or two numbers separated with a
@@ -861,8 +1027,8 @@ by the class:
   * *field class:* :class:`.CCField`
   * *param cleaning example:*
 
-    * *query string item:* ``cc=JP,UA,PL,US``
-    * *list of cleaned values:* ``[u"JP", u"UA", u"PL", u"US"]``
+    * *raw value:* ``"US"``
+    * *cleaned value:* ``u"US"``
 
   Two-letter country code related to IP addresses related to the
   queried incidents.
@@ -874,12 +1040,7 @@ by the class:
   * *in params:* **optional**
   * *in result:* **optional**
   * *field class:* :class:`.URLField`
-  * *param cleaning example:*
-
-    * *query string item:* ``url=ftp://example.com/foo,http://x/XYZ``
-    * *list of cleaned values:* ``[u"ftp://example.com/foo", u"http://x/XYZ"]``
-
-  * *result cleaning examples:*
+  * *param/result cleaning examples:*
 
     * *example synonymous raw values:*
 
@@ -905,8 +1066,8 @@ by the class:
   * *field class:* :class:`.URLSubstringField`
   * *param cleaning example:*
 
-    * *query string item:* ``url.sub=/example.c,XY``
-    * *list of cleaned values:* ``[u"/example.c", u"XY"]``
+    * *raw value:* ``"/example.c"``
+    * *cleaned value:* ``u"/example.c"``
 
   Substring of URLs related to the queried incidents. Maximum length:
   2048 characters (after cleaning).
@@ -922,12 +1083,7 @@ by the class:
   * *in params:* **optional**
   * *in result:* **optional**
   * *field class:* :class:`.DomainNameField`
-  * *param cleaning example:*
-
-    * *query string item:* ``fqdn=example.com,wwW.ŁÓDKa.Example.ORG``
-    * *list of cleaned values:* ``[u"example.com", u"www.xn--dka-fna80b.example.org"]``
-
-  * *result cleaning examples:*
+  * *param/result cleaning examples:*
 
     * *example synonymous raw values:*
 
@@ -960,8 +1116,8 @@ by the class:
   * *field class:* :class:`.DomainNameSubstringField`
   * *param cleaning example:*
 
-    * *query string item:* ``fqdn.sub=mple.c,ORG``
-    * *list of cleaned values:* ``[u"mple.c", u"org"]``
+    * *raw value:* ``"mple.c"``
+    * *cleaned value:* ``u"mple.c"``
 
   Substring of fully qualified domain names related to the queried
   incidents. Maximum length: 255 characters (after cleaning).
@@ -976,12 +1132,7 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.PROTO_ENUMS``
-  * *param cleaning example:*
-
-    * *query string item:* ``proto=tcp,udp``
-    * *list of cleaned values:* ``[u"tcp", u"udp"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"tcp"``
     * *cleaned value:* ``u"tcp"``
@@ -995,8 +1146,8 @@ by the class:
   * *field class:* :class:`.PortField`
   * *param cleaning example:*
 
-    * *query string item:* ``sport=80,12345``
-    * *list of cleaned values:* ``[80, 12345]``
+    * *raw value:* ``u"80"``
+    * *cleaned value:* ``80``
 
   * *result cleaning examples:*
 
@@ -1012,12 +1163,12 @@ by the class:
   * *field class:* :class:`.PortField`
   * *param cleaning example:*
 
-    * *query string item:* ``dport=80,12345``
-    * *list of cleaned values:* ``[80, 12345]``
+    * *raw value:* ``"80"``
+    * *cleaned value:* ``80``
 
-  * *result cleaning example:*
+  * *result cleaning examples:*
 
-    * *example synonymous raw values:* ``80`` or ``80.0`` or ``"80"``
+    * *example synonymous raw values:* ``80`` or ``80.0`` or ``u"80"``
     * *cleaned value:* ``80``
 
   TCP/UDP destination port (non-negative integer number, less than
@@ -1028,12 +1179,7 @@ by the class:
   * *in params:* **optional**
   * *in result:* **optional**
   * *field class:* :class:`.IPv4Field`
-  * *param cleaning example:*
-
-    * *query string item:* ``dip=123.10.234.168,123.10.234.169``
-    * *list of cleaned values:* ``[u"123.10.234.168", u"123.10.234.169"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"123.10.234.168"``
     * *cleaned value:* ``u"123.10.234.168"``
@@ -1061,12 +1207,7 @@ by the class:
   * *in params:* **optional**
   * *in result:* **optional**
   * *field class:* :class:`.MD5Field`
-  * *param cleaning example:*
-
-    * *query string item:* ``md5=b555773768bc1a672947d7f41f9c247f``
-    * *list of cleaned values:* ``[u"b555773768bc1a672947d7f41f9c247f"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"b555773768bc1a672947d7f41f9c247f"``
     * *cleaned value:* ``u"b555773768bc1a672947d7f41f9c247f"``
@@ -1079,18 +1220,100 @@ by the class:
   * *in params:* **optional**
   * *in result:* **optional**
   * *field class:* :class:`.SHA1Field`
-  * *param cleaning example:*
-
-    * *query string item:* ``sha1=7362d67c4f32ba5cd9096dcefc81b28ca04465b1``
-    * *list of cleaned values:* ``[u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
     * *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
 
-  SHA1 hash of the binary file related to the (queried/returned)
+  SHA-1 hash of the binary file related to the (queried/returned)
   incident.  In the form of a string of 40 hexadecimal digits.
+
+* ``injects``:
+
+  * *in params:* N/A
+  * *in result:* **optional**
+  * *field class:* :class:`.ListOfDictsField`
+
+  List of dictionaries containing data that describe a set of injects
+  performed by banking trojans when a user loads a targeted website.
+  (Exact structure of the dictionaries is dependent on malware family
+  and not specified at this time.)
+
+* ``registrar``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.UnicodeLimitedField`
+  * *specific field constructor arguments:* ``max_length=100``
+
+  Name of the domain registrar.
+
+* ``url_pattern``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.UnicodeLimitedField`
+  * *specific field constructor arguments:* ``max_length=255``
+
+  Wildcard pattern or regular expression triggering injects used by
+  banking trojans.
+
+* ``username``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.UnicodeLimitedField`
+  * *specific field constructor arguments:* ``max_length=64``
+
+  Local identifier (login) of the affected user.
+
+* ``x509fp_sha1``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.SHA1Field`
+  * *param/result cleaning example:*
+
+    * *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+    * *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+
+  SHA-1 fingerprint of an SSL certificate.  In the form of a string of
+  40 hexadecimal digits.
+
+* ``email``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.EmailSimplifiedField`
+  * *param/result cleaning example:*
+
+    * *raw value:* ``"Foo@example.com"``
+    * *cleaned value:* ``u"Foo@example.com"``
+
+  E-mail address associated with the threat (e.g. source of spam,
+  victim of a data leak).
+
+* ``iban``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.IBANSimplifiedField`
+  * *param/result cleaning example:*
+
+    * *raw value:* ``"gB82weST12345698765432"``
+    * *cleaned value:* ``u"GB82WEST12345698765432"``
+
+  International Bank Account Number associated with fraudulent
+  activity.
+
+* ``phone``
+
+  * *in params:* **optional**
+  * *in result:* **optional**
+  * *field class:* :class:`.UnicodeLimitedField`
+  * *specific field constructor arguments:* ``max_length=20``
+
+  Telephone number (national or international).
 
 * ``expires``:
 
@@ -1118,12 +1341,12 @@ by the class:
   * *field class:* :class:`.DateTimeField`
   * *param cleaning examples:*
 
-    * *example synonymous query string items:*
+    * *example synonymous raw values:*
 
-      * ``active.min=2014-11-05T23:13:00.000000`` or
-      * ``active.min=2014-11-06 01:13+02:00``
+      * ``"2014-11-05T23:13:00.000000"`` or
+      * ``"2014-11-06 01:13+02:00"``
 
-    * *list of cleaned values:* ``[datetime.datetime(2014, 11, 5, 23, 13, 0)]``
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
   The *earliest* expiry-or-occurrence time of the queried black list
   items.  Value cleaning includes conversion to UTC time.
@@ -1135,15 +1358,33 @@ by the class:
   * *field class:* :class:`.DateTimeField`
   * *param cleaning examples:*
 
-    * *example synonymous query string items:*
+    * *example synonymous raw values:*
 
-      * ``active.max=2014-11-05T23:13:00.000000`` or
-      * ``active.max=2014-11-06 01:13+02:00``
+      * ``u"2014-11-05T23:13:00.000000"`` or
+      * ``u"2014-11-06 01:13+02:00"``
 
-    * *list of cleaned values:* ``[datetime.datetime(2014, 11, 5, 23, 13, 0)]``
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
   The *latest* expiry-or-occurrence time of the queried black list
   items.  Value cleaning includes conversion to UTC time.
+
+* ``active.until``:
+
+  * *in params:* **optional, single**
+  * *in result:* N/A
+  * *field class:* :class:`.DateTimeField`
+  * *param cleaning examples:*
+
+    * *example synonymous raw values:*
+
+      * ``u"2014-11-06T01:13+02:00"`` or
+      * ``"2014-11-05 23:13:00.000000"``
+
+    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+
+  The time the queried incidents *expired or occurred before* (i.e.,
+  exclusive; a handy replacement for ``active.max`` in some cases).
+  Value cleaning includes conversion to UTC time.
 
 * ``status``:
 
@@ -1151,12 +1392,7 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeEnumField`
   * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.STATUS_ENUMS``
-  * *param cleaning example:*
-
-    * *query string item:* ``status=active,replaced``
-    * *list of cleaned values:* ``[u"active", u"replaced"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"active"``
     * *cleaned value:* ``u"active"``
@@ -1172,12 +1408,7 @@ by the class:
   * *in result:* **optional**
   * *field class:* :class:`.UnicodeLimitedField`
   * *specific field constructor arguments:* ``max_length=64``
-  * *param cleaning example:*
-
-    * *query string item:* ``replaces=abcDEF``
-    * *list of cleaned values:* ``[u"abcDEF"]``
-
-  * *result cleaning example:*
+  * *param/result cleaning example:*
 
     * *raw value:* ``"abcDEF"``
     * *cleaned value:* ``u"abcDEF"``
@@ -1433,7 +1664,7 @@ The following list briefly describes all field classes defined in the
   * *cleaned value type:* :class:`unicode`
   * *example cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
 
-  For hexadecimal SHA1 digests (hashes).
+  For hexadecimal SHA-1 digests (hashes).
 
 * :class:`~.UnicodeEnumField`:
 
@@ -1493,6 +1724,20 @@ The following list briefly describes all field classes defined in the
 
   For IPv4 addresses (in decimal dotted-quad notation).
 
+* :class:`~.IPv6Field`:
+
+  * *base classes:* :class:`~.UnicodeField`
+  * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
+  * *cleaned value type:* :class:`unicode`
+  * *example cleaned values:*
+
+    * **cleaned param value:** ``u"abcd:0000:0000:0000:0000:0000:0000:0001``
+      [note the "exploded" form]
+    * **cleaned result value:** ``u"abcd::1"``
+      [note the "condensed" form]
+
+  For IPv6 addresses (in the standard text representation).
+
 * :class:`~.AnonymizedIPv4Field`:
 
   * *base classes:* :class:`~.UnicodeLimitedField`, :class:`~.UnicodeRegexField`
@@ -1520,6 +1765,25 @@ The following list briefly describes all field classes defined in the
     * **cleaned result value:** ``u"123.10.0.0/16"``
 
   For IPv4 network specifications (in CIDR notation).
+
+* :class:`~.IPv6NetField`:
+
+  * *base classes:* :class:`~.UnicodeField`
+  * *raw (uncleaned) result value type:* :class:`str`/:class:`unicode`
+    or 2-:class:`tuple`: ``(<str/unicode>, <int>)``
+  * *cleaned value types:*
+
+    * **of cleaned param values:** 2-:class:`tuple`: ``(<unicode>, <int>)``
+    * **of cleaned result values:** :class:`unicode`
+
+  * *example cleaned values:*
+
+    * **cleaned param value:** ``(u"abcd:0000:0000:0000:0000:0000:0000:0001, 128)``
+      [note the "exploded" form of the address part]
+    * **cleaned result value:** ``(u"abcd::1", 128)``
+      [note the "condensed" form of the address part]
+
+  For IPv6 network specifications (in CIDR notation).
 
 * :class:`~.CCField`:
 
@@ -1575,6 +1839,24 @@ The following list briefly describes all field classes defined in the
 
   For domain names, automatically IDNA-encoded and lower-cased.
 
+* :class:`~.EmailSimplifiedField`:
+
+  * *base classes:* :class:`~.UnicodeLimitedField`, :class:`~.UnicodeRegexField`
+  * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
+  * *cleaned value type:* :class:`unicode`
+  * *example cleaned value:* ``u"Foo@example.com"``
+
+  For e-mail addresses (validation is rather rough).
+
+* :class:`~.IBANSimplifiedField`:
+
+  * *base classes:* :class:`~.UnicodeLimitedField`, :class:`~.UnicodeRegexField`
+  * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
+  * *cleaned value type:* :class:`unicode`
+  * *example cleaned value:* ``u"GB82WEST12345698765432"``
+
+  For International Bank Account Numbers.
+
 * :class:`~.IntegerField`:
 
   * *base classes:* :class:`~.Field`
@@ -1599,7 +1881,7 @@ The following list briefly describes all field classes defined in the
   * *cleaned value type:* :class:`int` or (possibly, for bigger numbers) :class:`long`
   * *example cleaned value:* ``123456789``
 
-  For autonomous system numbers, such as ``12345``, ``123456789`` or
+  For autonomous system numbers, such as ``12345`` or ``123456789``, or
   ``12345.65432``.
 
 * :class:`~.PortField`:
@@ -1627,39 +1909,33 @@ The following list briefly describes all field classes defined in the
   :class:`tuple`, or any other :class:`collections.Sequence` not being
   :class:`str` or :class:`unicode`) and performs result cleaning (as
   defined in a superclass) for *each item* of it.  See: the
-  :ref:`AddressField <field_class_AddressField>` description below.
+  :ref:`ListOfDictsField <field_class_ListOfDictsField>` description
+  below.
 
 * :class:`~.DictResultField`:
 
   * *base classes:* :class:`~.Field`
-  * **obligatory** *constructor arguments or subclass attributes:*
+  * *most useful constructor arguments or subclass attributes:*
 
-    * **key_to_subfield_factory** (a dictionary that maps subfield
-      names to field classes or field factory functions)
-
-  * *other useful constructor arguments or subclass attributes:*
-
-    * **required_keys** (a set of keys that *must* appear in a
-      dictionary being a cleaned value or a cleaning error is
-      raised; default: empty :class:`frozenset`)
+    * **key_to_subfield_factory** (:obj:`None` or a dictionary that
+      maps subfield names to field classes or field factory functions)
 
   * *raw (uncleaned) result value type:* :class:`collections.Mapping`
   * *cleaned value type:* :class:`dict`
 
   A base class for fields whose result values are supposed to be
-  dictionaries (whose fixed structure is defined by the
-  *key_to_subfield_factory* and *required_keys* properties, described
-  above).
+  dictionaries (their structure can be constrained by specifying the
+  *key_to_subfield_factory* property, described above).
 
   .. note::
 
      This is a result-only field class, i.e. its
      :meth:`~.DictResultField.clean_param_value` raises
-     :exc:`~.exceptions.NotImplementedError`.
+     :exc:`~.exceptions.TypeError`.
 
-.. _field_class_AddressField:
+.. _field_class_ListOfDictsField:
 
-* :class:`~.AddressField`:
+* :class:`~.ListOfDictsField`:
 
   * *base classes:* :class:`~.ResultListFieldMixin`,
     :class:`~.DictResultField`
@@ -1670,12 +1946,57 @@ The following list briefly describes all field classes defined in the
 
     * **cleaned param value:** N/A
       (:meth:`~.DictResultField.clean_param_value` raises
-      :exc:`~.exceptions.NotImplementedError`)
+      :exc:`~.exceptions.TypeError`)
+    * **cleaned result value:** ``[{u"a": u"b", u"c": 4, u"e": [1, 2, 3]}]``
+
+  For lists of dictionaries containing arbitrary values.
+
+* :class:`~.AddressField`:
+
+  * *base classes:* :class:`~.ListOfDictsField`
+  * *raw (uncleaned) result value type:* :class:`collections.Sequence`
+    of :class:`collections.Mapping` instances
+  * *cleaned value type:* :class:`list` of :class:`dict` instances
+  * *example cleaned values:*
+
+    * **cleaned param value:** N/A
+      (:meth:`~.DictResultField.clean_param_value` raises
+      :exc:`~.exceptions.TypeError`)
     * **cleaned result value:** ``[{u"ip": u"123.10.234.169", u"cc":
       u"UA", u"asn": 12345}]``
 
-  For lists of dictionaries containing ``"ip"`` and optionally
+  For lists of dictionaries -- each containing ``"ip"`` and optionally
   ``"cc"`` and/or ``"asn"``.
+
+* :class:`~.DirField`:
+
+  * *base classes:* :class:`~.UnicodeEnumField`
+  * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
+  * *cleaned value type:* :class:`unicode`
+  * *the only possible cleaned values:* ``u"src"`` or ``u"dst"``
+
+  For ``dir`` values in items cleaned by of
+  :class:`ExtendedAddressField` instances (``dir`` marks role of the
+  address in terms of the direction of the network flow in layers 3 or
+  4).
+
+* :class:`~.ExtendedAddressField`:
+
+  * *base classes:* :class:`~.ListOfDictsField`
+  * *raw (uncleaned) result value type:* :class:`collections.Sequence`
+    of :class:`collections.Mapping` instances
+  * *cleaned value type:* :class:`list` of :class:`dict` instances
+  * *example cleaned values:*
+
+    * **cleaned param value:** N/A
+      (:meth:`~.DictResultField.clean_param_value` raises
+      :exc:`~.exceptions.TypeError`)
+    * **cleaned result value:** ``[{u"ipv6": u"abcd::1", u"cc": u"PL",
+      u"asn": 12345, u"dir": u"dst"}]``
+
+  For lists of dictionaries -- each containing either ``"ip"`` or
+  ``"ipv6"`` (but not both), and optionally all or some of: ``"cc"``,
+  ``"asn"``, ``"dir"``, ``"rdns"``.
 
 
 .. note::
@@ -1916,8 +2237,9 @@ our favorite text editor and **place the following code in it**::
                         if not any(addr.get(key) in value_list
                                    for addr in address_seq):
                             break   # incident does not match the query params
-                    # WARNING: *.min/*.max/*.sub/ip.net queries are
-                    # not supported by this simplified implementation
+                    # WARNING: *.min/*.max/*.until/*.sub/ip.net/ipv6.net
+                    # queries are not supported by this simplified
+                    # implementation
                     elif incident.get(key) not in value_list:
                         break       # incident does not match the query params
                 else:
@@ -1953,7 +2275,7 @@ What is important:
 
 3. Each data query method must be a *generator* (see:
    https://docs.python.org/2/glossary.html#term-generator) or any
-   other callable provided that it returns an *iterator* (see:
+   other callable that returns an *iterator* (see:
    https://docs.python.org/2/glossary.html#term-iterator). Each of the
    generated items should be a dictionary containing the data of one
    network incident (the *n6sdk* machinery will use it as the argument
@@ -1992,8 +2314,9 @@ method** of the data backend API class:
    .. note::
 
       If the data specification includes dotted "extra params" (such
-      as ``time.min``, ``time.max``, ``fqdn.sub``, ``ip.net`` etc.)
-      their semantics should be implemented carefully.
+      as ``time.min``, ``time.max``, ``time.until``, ``fqdn.sub``,
+      ``ip.net`` etc.) their semantics should be implemented
+      carefully.
 
 3. If needed: perform a necessary storage-specific maintenance
    activity (e.g., re-new a database connection if necessary).
@@ -2153,6 +2476,7 @@ following URLs (with any web browser or, for example, with the
 * ``http://127.0.0.1:6543/incidents.json?category=phish``
 * ``http://127.0.0.1:6543/incidents.json?category=server-exploit``
 * ``http://127.0.0.1:6543/incidents.json?category=server-exploit&ip=11.22.33.44``
+* ``http://127.0.0.1:6543/incidents.json?category=bots&category=dos-attacker``
 * ``http://127.0.0.1:6543/incidents.json?category=bots,dos-attacker,phish,server-exploit``
 * ``http://127.0.0.1:6543/incidents.sjson?mac_address=00:11:22:33:44:55``
 * ``http://127.0.0.1:6543/incidents.sjson?source=test.first``
@@ -2163,9 +2487,9 @@ following URLs (with any web browser or, for example, with the
 
 * ``http://127.0.0.1:6543/incidents``
 * ``http://127.0.0.1:6543/incidents.json?some-illegal-key=1&another-one=foo``
-* ``http://127.0.0.1:6543/incidents.json?category=bots&category=dos-attacker``
 * ``http://127.0.0.1:6543/incidents.json?category=wrong``
-* ``http://127.0.0.1:6543/incidents.json?category=bots,dos-attacker,wrong``
+* ``http://127.0.0.1:6543/incidents.json?category=bots,wrong``
+* ``http://127.0.0.1:6543/incidents.json?category=bots&category=wrong``
 * ``http://127.0.0.1:6543/incidents.json?ip=11.22.33.44.55``
 * ``http://127.0.0.1:6543/incidents.sjson?ip=11.22.33.444``
 * ``http://127.0.0.1:6543/incidents.sjson?mac_address=00:11:123456:33:44:55``
@@ -2233,7 +2557,7 @@ Then, we will create the WSGI script:
     application = get_app(ini_path, 'main')
     EOF
 
-It is also good idea to provide a *Python egg cache*:
+...and provide the directory for the *egg cache*:
 
 .. code-block:: bash
 

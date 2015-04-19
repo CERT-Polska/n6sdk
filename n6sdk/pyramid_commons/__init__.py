@@ -12,6 +12,7 @@
 
 
 import functools
+import itertools
 import logging
 
 from pyramid.config import Configurator
@@ -32,7 +33,6 @@ from pyramid.security import (
 
 from n6sdk.class_helpers import attr_required
 from n6sdk.data_spec import BaseDataSpec
-from n6sdk.encoding_helpers import ascii_str
 from n6sdk.exceptions import (
     DataAPIError,
     AuthorizationError,
@@ -213,14 +213,12 @@ class DefaultStreamViewBase(object):
             raise HTTPServerError(exc.public_message)
 
     def iter_deduplicated_params(self):
-        for key, value in self.request.params.iteritems():
-            try:
-                self.request.params.getone(key)
-            except KeyError:
-                raise HTTPBadRequest('Query parameter "{}" duplicated.'
-                                     .format(ascii_str(key)))
-            else:
-                yield key, value
+        chain_iterables = itertools.chain.from_iterable
+        params = self.request.params
+        for key in params:
+            values = params.getall(key)
+            assert values and all(isinstance(val, basestring) for val in values)
+            yield key, list(chain_iterables(val.split(',') for val in values))
 
     def call_api(self):
         api_method_name = self.data_backend_api_method

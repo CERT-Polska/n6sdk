@@ -20,8 +20,11 @@ Basic References
 
 * **Home page:** https://github.com/CERT-Polska/n6sdk
 * **Documentation:** http://n6sdk.readthedocs.org/
-* **Usage example:** see the contents of the ``examples/BasicExample``
-  subdirectory of the *n6sdk* source code directory.
+* **Usage examples:**
+
+  * the tutorial being a part of the aforementioned documentation;
+  * the contents of the ``examples/BasicExample`` subdirectory of the
+    *n6sdk* source code directory.
 
 
 Copyright, License and Authors

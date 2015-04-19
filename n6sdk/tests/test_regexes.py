@@ -337,6 +337,14 @@ class Test_IPv4_ANONYMIZED_REGEX(unittest.TestCase):
         self.assertNotRegexpMatches('', self.regex)
 
 
+## TODO:
+#class Test_EMAIL_SIMPLIFIED_REGEX(unittest.TestCase):
+
+
+## TODO:
+#class Test_IBAN_REGEX(unittest.TestCase):
+
+
 class Test_SOURCE_REGEX(unittest.TestCase):
 
     regex = SOURCE_REGEX

@@ -14,16 +14,21 @@ from n6sdk.data_spec import (
     Ext,
 )
 from n6sdk.data_spec.fields import (
-    AddressField,
     AnonymizedIPv4Field,
     ASNField,
     CCField,
     DateTimeField,
     DomainNameField,
     DomainNameSubstringField,
+    EmailSimplifiedField,
+    ExtendedAddressField,
+    IBANSimplifiedField,
     IntegerField,
     IPv4Field,
     IPv4NetField,
+    IPv6Field,
+    IPv6NetField,
+    ListOfDictsField,
     MD5Field,
     PortField,
     SHA1Field,
@@ -85,12 +90,15 @@ class MixinBase(GenericDataSpecTestMixin):
         u'time': DateTimeField,
         u'time.min': DateTimeField,
         u'time.max': DateTimeField,
+        u'time.until': DateTimeField,
         u'origin': UnicodeEnumField,
         u'name': UnicodeLimitedField,
         u'target': UnicodeLimitedField,
-        u'address': AddressField,
+        u'address': ExtendedAddressField,
         u'ip': IPv4Field,
         u'ip.net': IPv4NetField,
+        u'ipv6': IPv6Field,
+        u'ipv6.net': IPv6NetField,
         u'asn': ASNField,
         u'cc': CCField,
         u'url': URLField,
@@ -104,9 +112,22 @@ class MixinBase(GenericDataSpecTestMixin):
         u'adip': AnonymizedIPv4Field,
         u'md5': MD5Field,
         u'sha1': SHA1Field,
+        u'injects': ListOfDictsField,
+        u'registrar': UnicodeLimitedField,
+        u'url_pattern': UnicodeLimitedField,
+        u'username': UnicodeLimitedField,
+        u'x509fp_sha1': SHA1Field,
+        u'email': EmailSimplifiedField,
+        u'iban': IBANSimplifiedField,
+        u'phone': UnicodeLimitedField,
         u'expires': DateTimeField,
         u'active.min': DateTimeField,
         u'active.max': DateTimeField,
+        u'active.until': DateTimeField,
+        u'modified': DateTimeField,
+        u'modified.min': DateTimeField,
+        u'modified.max': DateTimeField,
+        u'modified.until': DateTimeField,
         u'status': UnicodeEnumField,
         u'replaces': UnicodeLimitedField,
         u'until': DateTimeField,
@@ -177,40 +198,49 @@ class ParamCleanMixin(MixinBase):
 
     keys = {
         u'id', u'source', u'restriction', u'confidence', u'category',
-        u'time.min', u'time.max',
+        u'time.min', u'time.max', u'time.until',
         u'origin', u'name', u'target',
-        u'ip', u'ip.net', u'asn', u'cc',
+        u'ip', u'ip.net', u'ipv6', u'ipv6.net', u'asn', u'cc',
         u'url', u'url.sub', u'fqdn', u'fqdn.sub',
         u'proto', u'sport', u'dport', u'dip',
         u'md5', u'sha1',
-        u'active.min', u'active.max',
+        u'registrar', u'url_pattern', u'username', u'x509fp_sha1',
+        u'email', u'iban', u'phone',
+        u'active.min', u'active.max', u'active.until',
+        u'modified.min', u'modified.max', u'modified.until',
         u'status', u'replaces',
     }
 
     required_keys = set()
 
     single_param_keys = {
-        u'time.min', u'time.max',
-        u'active.min', u'active.max',
+        u'time.min', u'time.max', u'time.until',
+        u'active.min', u'active.max', u'active.until',
+        u'modified.min', u'modified.max', u'modified.until',
     }
 
     example_given_dict = {
-        'id': 'aaaaa,bbb',
-        u'category': u'bots',
-        'source': 'some.source,some.otherrrrrrrrrrrrrrrrrrrrrrr',
-        u'confidence': u'high,medium',
-        'ip': '100.101.102.103',
-        u'cc': 'PL,US',
-        'dip': u'0.10.20.30',
-        u'asn': '80000,1',
-        'dport': u'1234',
-        u'ip.net': u'100.101.102.103/32,1.2.3.4/7',
-        'time.min': '2014-04-01 01:07:42+02:00',
-        u'active.min': u'2015-05-02T24:00',
-        'url': 'http://www.ołówek.EXAMPLĘ.com/\xdd-TRALALą.html',
-        u'fqdn': u'www.test.org,www.ołówek.EXAMPLĘ.com',
-        'url.sub': ('xx' + 682 * '\xcc'),
-        u'fqdn.sub': 'ołówek',
+        'id': ['aaaaa', 'bbb'],
+        u'category': [u'bots'],
+        'source': ['some.source', 'some.otherrrrrrrrrrrrrrrrrrrrrrr'],
+        u'confidence': [u'high', 'medium'],
+        'ip': ['100.101.102.103'],
+        'ipv6': ['2001:db8:85a3::8a2e:370:7334'],
+        u'cc': ['PL', 'US'],
+        'dip': [u'0.10.20.30'],
+        'registrar': ['Foo Bar'],
+        u'asn': ['80000', '1'],
+        'dport': [u'1234'],
+        u'ip.net': [u'100.101.102.103/32', '1.2.3.4/7'],
+        'ipv6.net': ['2001:db8:85a3::8a2e:370:7334/128'],
+        u'time.min': ['2014-04-01 01:07:42+02:00'],
+        'modified.until': [u'2014-04-01 01:07:42+02:00'],
+        u'active.min': [u'2015-05-02T24:00'],
+        'phone': ['abc', u'+48123456789'],
+        'url': ['http://www.ołówek.EXAMPLĘ.com/\xdd-TRALALą.html'],
+        u'fqdn': [u'www.test.org', u'www.ołówek.EXAMPLĘ.com'],
+        'url.sub': [('xx' + 682 * '\xcc')],
+        u'fqdn.sub': ['ołówek'],
     }
 
     example_cleaned_dict = {
@@ -223,8 +253,10 @@ class ParamCleanMixin(MixinBase):
         u'source': [u'some.source', u'some.otherrrrrrrrrrrrrrrrrrrrrrr'],
         u'confidence': [u'high', u'medium'],
         u'ip': [u'100.101.102.103'],
+        u'ipv6': [u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'],
         u'cc': [u'PL', u'US'],
         u'dip': [u'0.10.20.30'],
+        u'registrar': [u'Foo Bar'],
 
         # (numbers converted to int)
         u'asn': [80000, 1],
@@ -232,12 +264,16 @@ class ParamCleanMixin(MixinBase):
 
         # (IP network specs converted to (ipv4, number) pairs)
         u'ip.net': [(u'100.101.102.103', 32), (u'1.2.3.4', 7)],
+        u'ipv6.net': [(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 128)],
 
         # (a TZ +02:00 datetime converted to UTC)
         u'time.min': [datetime.datetime(2014, 3, 31, 23, 7, 42)],
+        u'modified.until': [datetime.datetime(2014, 3, 31, 23, 7, 42)],
 
         # (24:00 on 2nd of May converted to 00:00 on 3rd of May)
-        u'active.min': [datetime.datetime(2015, 05, 03)],
+        u'active.min': [datetime.datetime(2015, 5, 03)],
+
+        u'phone': [u'abc', u'+48123456789'],
 
         # (non-UTF-8 URL characters surrogate-escaped)
         u'url': [u'http://www.ołówek.EXAMPLĘ.com/\udcdd-TRALALą.html'],
@@ -273,6 +309,9 @@ class ResultCleanMixin(MixinBase):
         u'address', u'url', u'fqdn',
         u'proto', u'sport', u'dport', u'dip', u'adip',
         u'md5', u'sha1',
+        u'injects', u'registrar', u'url_pattern', u'username', u'x509fp_sha1',
+        u'email', u'iban', u'phone',
+        u'modified',
         u'expires', u'status', u'replaces', u'until', u'count',
     }
 
@@ -287,6 +326,7 @@ class ResultCleanMixin(MixinBase):
         'confidence': u'low',
         u'category': u'bots',
         'adip': u'x.10.20.30',
+        u'url_pattern': '!@#$%^&* ()',
         'address': [
             {
                 'ip': u'100.101.102.103',
@@ -317,6 +357,7 @@ class ResultCleanMixin(MixinBase):
         u'confidence': u'low',
         u'category': u'bots',
         u'adip': u'x.10.20.30',
+        u'url_pattern': u'!@#$%^&* ()',
 
         u'address': [
             {
@@ -377,6 +418,11 @@ class SubclassMixinBase(MixinBase):
             in_params='optional',
             in_result='required',
         )
+        singular = UnicodeField(         # added
+            in_params='optional',
+            in_result=None,
+            single_param=True,           # (single-value-only param)
+        )
         notused = UnicodeField()     # not used because not tagged as
                                      # `in_params` and/or `in_results`
 
@@ -419,6 +465,7 @@ class SubclassMixinBase(MixinBase):
         u'dport': IntegerField,
         u'active.min': IntegerField,
         u'justnew': UnicodeField,
+        u'singular': UnicodeField,
     })
 
 
@@ -428,23 +475,25 @@ class SubclassParamCleanMixin(SubclassMixinBase, ParamCleanMixin):
 
     keys = ParamCleanMixin.keys.copy()
     keys -= {u'category', u'url', u'fqdn.sub', u'active.max'}
-    keys |= {u'justnew'}
+    keys |= {u'justnew', u'singular'}
 
     required_keys = {u'id', u'url.sub'}
 
     single_param_keys = ParamCleanMixin.single_param_keys.copy()
     single_param_keys -= {u'active.min', u'active.max'}
+    single_param_keys |= {u'singular'}
 
     example_given_dict = ParamCleanMixin.example_given_dict.copy()
     del example_given_dict[u'category']
     del example_given_dict[u'url']
     del example_given_dict[u'fqdn.sub']
     example_given_dict.update({
-        'id': 'aaa,bbb',
-        u'dport': '12345',
-        'active.min': '9876543210,-123',
-        u'url.sub': 100 * '\xcc',
-        'justnew': u'xyz,123',
+        'id': ['aaa', 'bbb'],
+        u'dport': ['12345'],
+        'active.min': ['9876543210', '-123'],
+        u'url.sub': [100 * '\xcc'],
+        'justnew': [u'xyz', u'123'],
+        u'singular': ['xyz'],
     })
 
     example_cleaned_dict = ParamCleanMixin.example_cleaned_dict.copy()
@@ -457,6 +506,7 @@ class SubclassParamCleanMixin(SubclassMixinBase, ParamCleanMixin):
         u'active.min': [9876543210, -123],
         u'url.sub': [100 * u'\udccc'],
         u'justnew': [u'xyz', u'123'],
+        u'singular': [u'xyz'],
     })
 
     example_illegal_keys = {
@@ -551,70 +601,74 @@ class TestDataSpec_clean_param_dict(ParamCleanMixin, unittest.TestCase):
     def test_missing_keys(self):
         self._test_missing_keys(self.ds.clean_param_dict)
 
-    def test_non_string_param(self):
-        given_dict = self._given_dict(dport=1234)
-        with self.assertRaises(TypeError):
-            self.ds.clean_param_dict(given_dict)
-
     def test_invalid_value__source_too_long(self):
         given_dict = self._given_dict(
-            source='some.source,some.otherrrrrrrrrrrrrrrrrrrrrrr' + 'x')
+            source=['some.source', 'some.otherrrrrrrrrrrrrrrrrrrrrrr' + 'x'])
         with self.assertRaises(ParamValueCleaningError) as cm:
             self.ds.clean_param_dict(given_dict)
         exc = cm.exception
         self.assertEqual(exc.error_info_seq, [
-            ('source', 'some.source,some.otherrrrrrrrrrrrrrrrrrrrrrrx', ANY),
+            ('source', 'some.otherrrrrrrrrrrrrrrrrrrrrrrx', ANY),
         ])
         self.assertIsInstance(exc.error_info_seq[0][2], Exception)
 
     def test_several_invalid_values(self):
         given_dict = self._given_dict(**{
             # not in enum set
-            'confidence': u'high,medium,INVALID',
+            'confidence': [u'high', u'medium', u'INVALID'],
             # invalid IPv4 (333 > 255)
-            'ip': '333.101.102.103',
+            'ip': ['333.101.102.103'],
             # invalid CIDR IPv4 network spec (33 > 32, 333 > 255)
-            'ip.net': u'100.101.102.103/33,333.2.3.4/1',
+            'ip.net': [u'100.101.102.103/33', '333.2.3.4/1'],
             # invalid country code ('!' not allowed)
-            'cc': '!!,US',
+            'cc': ['!!', u'US'],
             # IP starts with an anonymized octet
-            'dip': u'x.20.30.40',
+            'dip': [u'x.20.30.40'],
             # too big number
-            'asn': '4294967297',
+            'asn': ['4294967297'],
             # too small number
-            'dport': u'-1234',
+            'dport': [u'-1234'],
             # invalid time
-            'time.min': '2014-04-01 61:61:61+02:00',
+            'time.min': ['2014-04-01 61:61:61+02:00'],
+            # multiple values of single-value-only param
+            'time.max': ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'],
             # invalid date
-            'active.max': u'2015-05-99T15:25',
+            'active.max': [u'2015-05-99T15:25'],
             # too long URL
-            'url': (2049 * 'x'),
+            'url': [(2049 * 'x')],
             # too long URL substring
-            'url.sub': (2049 * 'x'),
+            'url.sub': [(2049 * 'x')],
             # too long label in a domain name
-            'fqdn': u'www.test.org,www.ołówekkkkkkkkkkkkkkkkkkkkkkkkkkk'
-                    u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk'
-                    u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.EXAMPLĘ.com',
+            'fqdn': [u'www.test.org,www.ołówekkkkkkkkkkkkkkkkkkkkkkkkkkk'
+                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk'
+                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.EXAMPLĘ.com'],
         })
         with self.assertRaises(ParamValueCleaningError) as cm:
             self.ds.clean_param_dict(given_dict)
         exc = cm.exception
         self.assertEqual(sorted(exc.error_info_seq), sorted([
-            ('confidence', u'high,medium,INVALID', ANY),
+            ('confidence', u'INVALID', ANY),
             ('ip', '333.101.102.103', ANY),
-            ('ip.net', u'100.101.102.103/33,333.2.3.4/1', ANY),
-            ('cc', '!!,US', ANY),
+            ('ip.net', u'100.101.102.103/33', ANY),
+            ('ip.net', '333.2.3.4/1', ANY),
+            ('cc', '!!', ANY),
             ('dip', ANY, ANY),
             ('asn', ANY, ANY),
             ('dport', ANY, ANY),
-            ('time.min', ANY, ANY),
-            ('active.max', ANY, ANY),
+            ('time.min', '2014-04-01 61:61:61+02:00', ANY),
+            ('time.max', ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'], ANY),
+            ('active.max', u'2015-05-99T15:25', ANY),
             ('url', ANY, ANY),
             ('url.sub', ANY, ANY),
             ('fqdn', ANY, ANY),
         ]))
         self.assertTrue(all(
-            isinstance(info[1], basestring) and isinstance(info[2], Exception)
+            (
+                isinstance(info[1], basestring) or (
+                    isinstance(info[1], list) and
+                    info[1] and
+                    all(isinstance(it, basestring) for it in info[1]))
+            ) and isinstance(info[2], Exception)
             for info in exc.error_info_seq))
 
 
@@ -727,24 +781,32 @@ class TestDataSpecSubclass_clean_param_dict(SubclassParamCleanMixin,
 
     def test_several_invalid_values(self):
         given_dict = self._given_dict(**{
-            'id': 'aaaaa,bbb',         # 'aaaaa' it is too long
-            'confidence': u'high,medium,INVALID',
-            'justnew': 'xyz\xdd,123',  # non-UTF-8 value
-            'dport': u'1234',          # the number is too low
-            'url.sub': (101 * 'x'),    # too long
+            'id': ['aaaaa', 'bbb'],         # 'aaaaa' is too long
+            'confidence': [u'high', u'medium', u'INVALID'],
+            'justnew': ['xyz\xdd', '123', '\xee'],  # non-UTF-8 values
+            'dport': [u'1234'],             # the number is too low
+            'url.sub': [101 * 'x'],         # too long
+            'singular': ['xyz', 'abc'],     # multiple values of single-value-only param
         })
         with self.assertRaises(ParamValueCleaningError) as cm:
             self.ds.clean_param_dict(given_dict)
         exc = cm.exception
         self.assertEqual(sorted(exc.error_info_seq), sorted([
-            ('id', 'aaaaa,bbb', ANY),
-            ('confidence', u'high,medium,INVALID', ANY),
-            ('justnew', 'xyz\xdd,123', ANY),
+            ('id', 'aaaaa', ANY),
+            ('confidence', u'INVALID', ANY),
+            ('justnew', 'xyz\xdd', ANY),
+            ('justnew', '\xee', ANY),
             ('dport', u'1234', ANY),
-            ('url.sub', (101 * 'x'), ANY),
+            ('url.sub', 101 * 'x', ANY),
+            ('singular', ['xyz', 'abc'], ANY),
         ]))
         self.assertTrue(all(
-            isinstance(info[1], basestring) and isinstance(info[2], Exception)
+            (
+                isinstance(info[1], basestring) or (
+                    isinstance(info[1], list) and
+                    info[1] and
+                    all(isinstance(it, basestring) for it in info[1]))
+            ) and isinstance(info[2], Exception)
             for info in exc.error_info_seq))
 
 

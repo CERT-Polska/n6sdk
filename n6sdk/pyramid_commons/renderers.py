@@ -30,7 +30,8 @@ class BaseStreamRenderer(object):
 
     def __init__(self, data_generator, request):
         if self.content_type is None:
-            raise NotImplementedError
+            raise NotImplementedError(
+                "the `content_type` class attribute not set")
         self.data_generator = data_generator
         self.request = request
         self.is_first = True
@@ -42,7 +43,8 @@ class BaseStreamRenderer(object):
         return ""
 
     def render_content(self, data, **kwargs):
-        raise NotImplementedError
+        raise NotImplementedError(
+            "the render_content() method not implemented")
 
     def iter_content(self, **kwargs):
         for data in self.data_generator:
@@ -68,6 +70,9 @@ class StreamRenderer_sjson(BaseStreamRenderer):
     def render_content(self, data, **kwargs):
         jsonized = json.dumps(dict_with_nulls_removed(data), default=_json_default)
         return jsonized + "\n"
+
+    def after_content(self, **kwargs):
+        return "\n"
 
 
 class StreamRenderer_json(BaseStreamRenderer):
@@ -100,7 +105,7 @@ class StreamRenderer_json(BaseStreamRenderer):
 
 def _json_default(o):
     if isinstance(o, datetime.datetime):
-        return o.isoformat()
+        return o.isoformat() + "Z"
     raise TypeError(repr(o) + " is not JSON serializable")
 
 

@@ -3,6 +3,8 @@
 # Copyright (c) 2013-2014 NASK. All rights reserved.
 
 
+import collections
+
 from n6sdk.encoding_helpers import ascii_str, as_unicode
 
 
@@ -135,10 +137,10 @@ class _ValueCleaningErrorMixin(object):
     Each instance of such a class:
 
     * should be initialized with one argument being a list of (*<key>*,
-      *<offending value>*, *<actual exception>*) tuples -- where *<actual
-      exception>* is the exception instance that caused the error (e.g.
-      a :exc:`~exceptions.ValueError` or an instance of some
-      :exc:`_ErrorWithPublicMessageMixin` subclass);
+      *<offending value or list of offending values>*, *<actual exception>*)
+      tuples -- where *<actual exception>* is the exception instance
+      that caused the error (e.g.  a :exc:`~exceptions.ValueError` or an
+      instance of some :exc:`_ErrorWithPublicMessageMixin` subclass);
 
     * exposes that argument as the :attr:`error_info_seq` attribute
       (for possible later inspection).
@@ -363,7 +365,7 @@ class ParamValueCleaningError(_ValueCleaningErrorMixin, ParamCleaningError):
     This exception class provides :attr:`default_public_message` (see:
     :exc:`_ErrorWithPublicMessageMixin`) as a property whose value is a
     nice, user-readable message that includes, *for each contained
-    exception*: the key, the offending value and the
+    exception*: the key, the offending value(s) and the
     :attr:`public_message` attribute of that *contained exception* (the
     latter only for instances of :exc:`_ErrorWithPublicMessageMixin`
     subclasses).
@@ -373,30 +375,39 @@ class ParamValueCleaningError(_ValueCleaningErrorMixin, ParamCleaningError):
     >>> try:
     ...     raise ParamValueCleaningError([
     ...         ('k1', 'ł-1', err1),
-    ...         ('k2', 'ł-2', err2),
+    ...         ('k2', ['ł-2', 'xyz'], err2),
     ...     ])
     ... except ParamCleaningError as exc:
     ...     pass
     ...
     >>> exc.public_message == (
-    ...     u'Wrong value ("\\u0142-1") of query parameter "k1". ' +
-    ...     u'Wrong value ("\\u0142-2") of query parameter "k2" (Message).')
+    ...     u'Problem with value(s) ("\\u0142-1") of query parameter "k1". ' +
+    ...     u'Problem with value(s) ("\\u0142-2", "xyz")' +
+    ...     u' of query parameter "k2" (Message).')
     True
-    >>> exc.error_info_seq == [('k1', 'ł-1', err1), ('k2', 'ł-2', err2)]
+    >>> exc.error_info_seq == [
+    ...     ('k1', 'ł-1', err1),
+    ...     ('k2', ['ł-2', 'xyz'], err2),
+    ... ]
     True
     """
 
-    msg_template = (u'Wrong value ("{value}") of query parameter '
-                    u'"{key}"{optional_exc_public_message}.')
+    msg_template = (u'Problem with value(s) ({values_repr}) of query '
+                    u'parameter "{key}"{optional_exc_public_message}.')
 
     @property
     def default_public_message(self):
         """The aforementioned property."""
         messages = []
-        for key, value, exc in self.error_info_seq:
+        for key, values, exc in self.error_info_seq:
+            if isinstance(values, basestring):
+                values = (values,)
+            assert isinstance(values, collections.Sequence)
             msg = self.msg_template.format(
-                value=ascii_str(value),
                 key=ascii_str(key),
+                values_repr=u', '.join(
+                    u'"{}"'.format(ascii_str(val))
+                    for val in values),
                 optional_exc_public_message=(
                     u' ({})'.format(exc.public_message.rstrip(u'.'))
                     if isinstance(exc, _ErrorWithPublicMessageMixin)
