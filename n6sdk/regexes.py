@@ -29,6 +29,7 @@ DOMAIN_ASCII_LOWERCASE_REGEX = re.compile(r'''
         [\-0-9a-z_]{1,63}
         \.
     )*
+    (?!\d+$)          # top-level label cannot consist of digits only
     [\-0-9a-z_]{1,63}
     $
 ''', re.VERBOSE)
@@ -38,22 +39,19 @@ DOMAIN_ASCII_LOWERCASE_REGEX = re.compile(r'''
 DOMAIN_ASCII_LOWERCASE_STRICT_REGEX = re.compile(r'''
     ^
     (?:
-        [0-9a-z]          # label is not allowed to start with '-'
+        [0-9a-z]      # label is not allowed to start with '-'
         (?:
             [\-0-9a-z]{0,61}
-            [0-9a-z]      # label is not allowed to end with '-'
+            [0-9a-z]  # label is not allowed to end with '-'
         )?
-        (?:
-            \.            # dot
-            (?=           # followed by next label...
-                [0-9a-z]
-            )
-        |                 # or
-            (?=           # termination
-                $
-            )
-        )
-    )+
+        \.
+    )*
+    (?!\d+$)          # top-level label cannot consist of digits only
+    [0-9a-z]          # label is not allowed to start with '-'
+    (?:
+        [\-0-9a-z]{0,61}
+        [0-9a-z]      # label is not allowed to end with '-'
+    )?
     $
 ''', re.VERBOSE)
 
@@ -167,7 +165,7 @@ SOURCE_REGEX = re.compile(r'^[\-0-9a-z]+\.[\-0-9a-z]+$')
 PY_IDENTIFIER_REGEX = re.compile('^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 
-#: E-mail address (very rough validation)
+#: E-mail address (very rough validation).
 #:
 #: Used by :class:`n6sdk.data_spec.fields.EmailSimplifiedField`.
 EMAIL_SIMPLIFIED_REGEX = re.compile(r'''

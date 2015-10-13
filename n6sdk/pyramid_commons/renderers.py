@@ -68,7 +68,7 @@ class StreamRenderer_sjson(BaseStreamRenderer):
     content_type = "text/plain"
 
     def render_content(self, data, **kwargs):
-        jsonized = json.dumps(dict_with_nulls_removed(data), default=_json_default)
+        jsonized = data_dict_to_json(data)
         return jsonized + "\n"
 
     def after_content(self, **kwargs):
@@ -90,10 +90,7 @@ class StreamRenderer_json(BaseStreamRenderer):
         return "\n]"
 
     def render_content(self, data, **kwargs):
-        jsonized = json.dumps(
-            dict_with_nulls_removed(data),
-            default=_json_default,
-            indent=4)
+        jsonized = data_dict_to_json(data, indent=4)
         if self.is_first:
             return jsonized
         else:
@@ -112,18 +109,16 @@ def _json_default(o):
 # helper for dict_with_nulls_removed() (see below)
 def _container_with_nulls_removed(
         obj,
+        # [the following constants are placed here as pseudo-arguments
+        # just for efficiency (local variable lookups are faster than
+        # dict-based global/builtin lookups) -- profiling proved that
+        # it is worth to optimize this function as much as possible...]
         _isinstance=isinstance,
         _jsonable_container=(dict, list, tuple),
         _dict=dict,
-        _dict_items=dict.iteritems,
-        __quick_cell=[]):
+        _dict_items=dict.iteritems):
     #assert _isinstance(obj, _jsonable_container)
-    try:
-        this_func = __quick_cell[0]
-    except IndexError:
-        # only on the first call:
-        __quick_cell.append(_container_with_nulls_removed)
-        this_func = __quick_cell[0]
+    this_func = _container_with_nulls_removed
     if _isinstance(obj, _dict):
         items = [
             (k, (this_func(v)
@@ -143,11 +138,12 @@ def _container_with_nulls_removed(
     return None
 
 
-# optimized + slightly fixed version of previously used _remove_nulls();
-# this version is elegamnt and DRY but faster
-# [profiling proved that it may be worth do optimize it]
 def dict_with_nulls_removed(
         d,
+        # [the following constants are placed here as pseudo-arguments
+        # just for efficiency (local variable lookups are faster than
+        # dict-based global/builtin lookups) -- profiling proved that
+        # it is worth to optimize this function as much as possible...]
         _container_with_nulls_removed=_container_with_nulls_removed,
         _isinstance=isinstance,
         _jsonable_container=(dict, list, tuple),
@@ -200,3 +196,66 @@ def dict_with_nulls_removed(
              else (v if (v or v == 0) else None)))
         for k, v in _dict_items(d)]
     return {k: v for k, v in items if v is not None}
+
+
+def data_dict_to_json(data, **kwargs):
+    r"""
+    Serialize the given data dictionary to JSON (using any additional
+    keyword arguments as argument for func:`json.dumps`), applying
+    :func:`dict_with_nulls_removed` and converting contained
+    :class:`datetime.datetime` instances (if any) to strings.  Only
+    :class:`datetime.datetime` instances that are "naive", i.e. not
+    aware of timezone, can be used (effects of using timezone-aware
+    ones are undefined).
+
+    >>> import copy, datetime, json
+    >>> d = {
+    ...  'a': 'A', 'b': '', 'c': [], 'd': (), 'e': {}, 'f': [''], 'g': ['x'],
+    ...  'h': {
+    ...   'a': 'A', 'b': '', 'c': [], 'd': (), 'e': {}, 'f': [''], 'g': ['x'],
+    ...  },
+    ...  'i': ['A', '', 0, [], (), {}, [None], [0.0], ['x']],
+    ...  'j': ['', [{}], ([{}]), {'x': ()}, ['']],
+    ...  'k': [None],
+    ...  'l': {'x': None},
+    ...  'm': None,
+    ...  'x': [0],
+    ...  'y': {'x': False},
+    ...  'z': 0,
+    ...  'dt': datetime.datetime(2015, 6, 19, 10, 22, 42, 123),
+    ...  'dt_seq': [
+    ...    datetime.datetime(2015, 6, 19, 10, 22, 42),
+    ...    [],
+    ...    [datetime.datetime(2015, 6, 19, 10, 22, 42, 987654)],
+    ...  ],
+    ... }
+    >>> dcopy = copy.deepcopy(d)
+    >>> json1 = data_dict_to_json(d)
+    >>> json2 = data_dict_to_json(d, indent=4)
+    >>> '\n' not in json1
+    True
+    >>> '\n' in json2
+    True
+    >>> len(json2) > len(json1)
+    True
+    >>> json.loads(json1) == json.loads(json2) == {
+    ...  'a': 'A', 'g': ['x'],
+    ...  'h': {'a': 'A', 'g': ['x']},
+    ...  'i': ['A', 0, [0.0], ['x']],
+    ...  'x': [0],
+    ...  'y': {'x': False},
+    ...  'z': 0,
+    ...  'dt': '2015-06-19T10:22:42.000123Z',
+    ...  'dt_seq': [
+    ...   '2015-06-19T10:22:42Z',
+    ...   ['2015-06-19T10:22:42.987654Z'],
+    ...  ],
+    ... }
+    True
+    >>> dcopy == d  # the given dictionary has not been modified
+    True
+    """
+    return json.dumps(
+        dict_with_nulls_removed(data),
+        default=_json_default,
+        **kwargs)

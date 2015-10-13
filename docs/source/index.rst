@@ -17,6 +17,11 @@ Welcome to *n6sdk*'s documentation!
    tutorial
 
 .. toctree::
+   :maxdepth: 2
+
+   api_test_tool
+
+.. toctree::
    :maxdepth: 3
 
    library_reference

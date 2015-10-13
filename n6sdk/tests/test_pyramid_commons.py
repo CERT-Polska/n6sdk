@@ -6,57 +6,36 @@
 import unittest
 
 from mock import (
+    ANY,
     call,
     MagicMock,
     patch,
     sentinel as sen,
 )
+
 from pyramid.httpexceptions import (
+    HTTPBadRequest,
     HTTPForbidden,
+    HTTPNotFound,
     HTTPServerError,
 )
 
 from n6sdk.exceptions import (
     DataAPIError,
     AuthorizationError,
+    ParamCleaningError,
     ResultCleaningError,
+    TooMuchDataError
 )
 from n6sdk.pyramid_commons import (
     DefaultStreamViewBase,
+    ConfigHelper,
 )
 
 
 @patch('n6sdk.pyramid_commons.registered_stream_renderers',
        new={'some': MagicMock(), 'another': MagicMock()})
 class TestDefaultStreamViewBase__concrete_view_class(unittest.TestCase):
-
-    def test_with_args(self, *args):
-        result = DefaultStreamViewBase.concrete_view_class(
-            'some_resource_id',
-            frozenset({'some'}),
-            sen.data_spec,
-            'some_method_name')
-        self._basic_asserts(result)
-
-    def test_with_kwargs(self, *args):
-        result = DefaultStreamViewBase.concrete_view_class(
-            resource_id='some_resource_id',
-            renderers=frozenset({'some'}),
-            data_spec=sen.data_spec,
-            data_backend_api_method='some_method_name')
-        self._basic_asserts(result)
-
-    def test_for_subclass(self, *args):
-        class SomeViewBase(DefaultStreamViewBase):
-            x = 42
-        result = SomeViewBase.concrete_view_class(
-            resource_id='some_resource_id',
-            renderers=frozenset({'some'}),
-            data_spec=sen.data_spec,
-            data_backend_api_method='some_method_name')
-        self._basic_asserts(result)
-        self.assertTrue(issubclass(result, SomeViewBase))
-        self.assertEqual(result.x, 42)
 
     def _basic_asserts(self, result):
         self.assertTrue(issubclass(result, DefaultStreamViewBase))
@@ -69,6 +48,38 @@ class TestDefaultStreamViewBase__concrete_view_class(unittest.TestCase):
         self.assertEqual(result.renderers, {'some'})
         self.assertIs(result.data_spec, sen.data_spec)
         self.assertEqual(result.data_backend_api_method, 'some_method_name')
+        self.assertIs(result.adjust_exc, sen.adjust_exc)
+
+    def test_with_args(self, *args):
+        result = DefaultStreamViewBase.concrete_view_class(
+            'some_resource_id',
+            frozenset({'some'}),
+            sen.data_spec,
+            'some_method_name',
+            sen.adjust_exc)
+        self._basic_asserts(result)
+
+    def test_with_kwargs(self, *args):
+        result = DefaultStreamViewBase.concrete_view_class(
+            resource_id='some_resource_id',
+            renderers=frozenset({'some'}),
+            data_spec=sen.data_spec,
+            data_backend_api_method='some_method_name',
+            adjust_exc=sen.adjust_exc)
+        self._basic_asserts(result)
+
+    def test_for_subclass(self, *args):
+        class SomeViewBase(DefaultStreamViewBase):
+            x = 42
+        result = SomeViewBase.concrete_view_class(
+            resource_id='some_resource_id',
+            renderers=frozenset({'some'}),
+            data_spec=sen.data_spec,
+            data_backend_api_method='some_method_name',
+            adjust_exc=sen.adjust_exc)
+        self._basic_asserts(result)
+        self.assertTrue(issubclass(result, SomeViewBase))
+        self.assertEqual(result.x, 42)
 
     def test_unregistered_renderer_error(self):
         with self.assertRaisesRegexp(ValueError, r'renderer.*not.*registered'):
@@ -76,7 +87,8 @@ class TestDefaultStreamViewBase__concrete_view_class(unittest.TestCase):
                 resource_id='some_resource_id',
                 renderers=frozenset({'some_unregistered'}),
                 data_spec=sen.data_spec,
-                data_backend_api_method='some_method_name')
+                data_backend_api_method='some_method_name',
+                adjust_exc=sen.adjust_exc)
 
 
 class TestDefaultStreamViewBase__iter_deduplicated_params(unittest.TestCase):
@@ -106,8 +118,11 @@ class TestDefaultStreamViewBase__iter_deduplicated_params(unittest.TestCase):
         ])
 
 
-@patch('n6sdk.pyramid_commons.LOGGER')
 class TestDefaultStreamViewBase__call_api(unittest.TestCase):
+
+    class SomeAdjustedExc(Exception):
+        def __init__(self, given_exc):
+            self.given_exc = given_exc  # (only for introspection in the tests)
 
     def setUp(self):
         self.data_spec = MagicMock()
@@ -116,28 +131,39 @@ class TestDefaultStreamViewBase__call_api(unittest.TestCase):
             sen.cleaned_result_dict_2,
             sen.cleaned_result_dict_3,
         ]
+
+        SomeAdjustedExc = self.SomeAdjustedExc
+        self.adjust_exc = MagicMock(
+            side_effect=(lambda exc: SomeAdjustedExc(exc)))
+
         self.request = MagicMock()
         self.request.registry.data_backend_api.my_api_method = (
             sen.api_method)
+
         with patch('n6sdk.pyramid_commons.registered_stream_renderers',
                    new={'some': MagicMock()}):
             self.cls = DefaultStreamViewBase.concrete_view_class(
                 resource_id='some_resource_id',
                 renderers=frozenset({'some'}),
                 data_spec=self.data_spec,
-                data_backend_api_method='my_api_method')
+                data_backend_api_method='my_api_method',
+                adjust_exc=self.adjust_exc)
+
+        self.cls._get_renderer_name = (lambda self: 'some')
         self.cls.call_api_method = MagicMock()
         self.cls.call_api_method.return_value = self.call_iter = iter([
             sen.result_dict_1,
             sen.result_dict_2,
             sen.result_dict_3,
         ])
+
         self.cls.get_clean_result_dict_kwargs = MagicMock(
             return_value={'kwarg': sen.kwarg})
+
         self.obj = self.cls(sen.context, self.request)
         self.results = []
 
-    def do_call(self):
+    def _do_call(self):
         result_generator = self.obj.call_api()
         while True:
             try:
@@ -145,8 +171,38 @@ class TestDefaultStreamViewBase__call_api(unittest.TestCase):
             except StopIteration:
                 break
 
-    def test_full_success(self, LOGGER):
-        self.do_call()
+    def _test_exc_in_the_middle(self, exc_class, flag=None,
+                                expected_exc_adjust=True):
+        self.cleaned_list[1] = exc_class
+        self.assertTrue(self.cls.break_on_result_cleaning_error)
+        if flag is not None:
+            self.cls.break_on_result_cleaning_error = flag
+        if expected_exc_adjust:
+            with self.assertRaises(self.SomeAdjustedExc) as cm:
+                self._do_call()
+            self.assertIsInstance(cm.exception.given_exc, exc_class)
+            self.assertEqual(self.adjust_exc.call_count, 1)
+        else:
+            with self.assertRaises(exc_class) as cm:
+                self._do_call()
+            self.assertEqual(self.adjust_exc.call_count, 0)
+        self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
+        self.cls.call_api_method.assert_called_once_with(sen.api_method)
+        self.assertEqual(self.data_spec.clean_result_dict.mock_calls, [
+            call(sen.result_dict_1, kwarg=sen.kwarg),
+            call(sen.result_dict_2, kwarg=sen.kwarg),
+        ])
+        self.assertEqual(self.results, [
+            sen.cleaned_result_dict_1,
+        ])
+        not_comsumed_result_dicts = list(self.call_iter)
+        self.assertEqual(not_comsumed_result_dicts, [
+            sen.result_dict_3,
+        ])
+
+    def test_full_success(self):
+        self._do_call()
+        self.assertEqual(self.adjust_exc.call_count, 0)
         self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
         self.cls.call_api_method.assert_called_once_with(sen.api_method)
         self.assertEqual(self.data_spec.clean_result_dict.mock_calls, [
@@ -160,30 +216,35 @@ class TestDefaultStreamViewBase__call_api(unittest.TestCase):
             sen.cleaned_result_dict_3,
         ])
 
-    def test_breaking_on_ResultCleaningError(self, LOGGER):
-        assert self.cls.break_on_result_cleaning_error
-        self.cleaned_list[1] = ResultCleaningError
-        with self.assertRaises(HTTPServerError):
-            self.do_call()
+    def test_breaking_on_Exception(self):
+        self.cls.call_api_method.side_effect = Exception
+        with self.assertRaises(self.SomeAdjustedExc) as cm:
+            self._do_call()
+        self.assertIsInstance(cm.exception.given_exc, Exception)
+        self.assertEqual(self.adjust_exc.call_count, 1)
         self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
         self.cls.call_api_method.assert_called_once_with(sen.api_method)
-        self.assertEqual(self.data_spec.clean_result_dict.mock_calls, [
-            call(sen.result_dict_1, kwarg=sen.kwarg),
-            call(sen.result_dict_2, kwarg=sen.kwarg),
-        ])
-        self.assertEqual(LOGGER.exception.call_count, 1)
-        self.assertEqual(self.results, [
-            sen.cleaned_result_dict_1,
-        ])
+        self.assertEqual(self.data_spec.clean_result_dict.call_count, 0)
+        self.assertEqual(self.results, [])
         not_comsumed_result_dicts = list(self.call_iter)
         self.assertEqual(not_comsumed_result_dicts, [
+            sen.result_dict_1,
+            sen.result_dict_2,
             sen.result_dict_3,
         ])
 
+    def test_breaking_on_ResultCleaningError_if_flag_is_true(self):
+        self._test_exc_in_the_middle(ResultCleaningError)
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
     def test_skipping_ResultCleaningError_if_flag_is_false(self, LOGGER):
-        self.cls.break_on_result_cleaning_error = False  # <- this flag
         self.cleaned_list[1] = ResultCleaningError
-        self.do_call()
+        self.cls.break_on_result_cleaning_error = False
+        self._do_call()
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, ANY),
+        ])
+        self.assertEqual(self.adjust_exc.call_count, 0)
         self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
         self.cls.call_api_method.assert_called_once_with(sen.api_method)
         self.assertEqual(self.data_spec.clean_result_dict.mock_calls, [
@@ -191,30 +252,219 @@ class TestDefaultStreamViewBase__call_api(unittest.TestCase):
             call(sen.result_dict_2, kwarg=sen.kwarg),
             call(sen.result_dict_3, kwarg=sen.kwarg),
         ])
-        self.assertEqual(LOGGER.error.call_count, 1)
         self.assertEqual(self.results, [
             sen.cleaned_result_dict_1,
             sen.cleaned_result_dict_3,
         ])
 
-    def test_breaking_on_AuthorizationError(self, LOGGER):
-        self.cls.call_api_method.side_effect = AuthorizationError
-        with self.assertRaises(HTTPForbidden):
-            self.do_call()
-        self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
-        self.cls.call_api_method.assert_called_once_with(sen.api_method)
-        self.assertEqual(self.data_spec.clean_result_dict.call_count, 0)
-        self.assertEqual(self.results, [])
+    def test_breaking_on_another_Exception_if_flag_is_true(self):
+        self._test_exc_in_the_middle(ZeroDivisionError)
 
-    def test_breaking_on_DataAPIError(self, LOGGER):
-        self.cls.call_api_method.side_effect = DataAPIError
-        with self.assertRaises(HTTPServerError):
-            self.do_call()
-        self.cls.get_clean_result_dict_kwargs.assert_called_once_with()
-        self.cls.call_api_method.assert_called_once_with(sen.api_method)
-        self.assertEqual(self.data_spec.clean_result_dict.call_count, 0)
-        self.assertEqual(LOGGER.exception.call_count, 1)
-        self.assertEqual(self.results, [])
+    def test_breaking_on_another_Exception_if_flag_is_false(self):
+        self._test_exc_in_the_middle(ZeroDivisionError, flag=False)
+
+    def test_breaking_on_non_Exception_if_flag_is_true(self):
+        self._test_exc_in_the_middle(BaseException,
+                                     expected_exc_adjust=False)
+
+    def test_breaking_on_non_Exception_if_flag_is_false(self):
+        self._test_exc_in_the_middle(BaseException, flag=False,
+                                     expected_exc_adjust=False)
 
 
-## TODO: more tests...
+## TODO:
+# class Test...
+# class Test...
+# class Test...
+
+
+class TestConfigHelper(unittest.TestCase):
+
+    ## TODO:
+    # def test...
+    # def test...
+    # def test...
+
+    def test__exception_view(self):
+        http_exc = HTTPNotFound('FOO')
+        assert http_exc.code == 404
+        assert http_exc.content_type == 'text/html'
+        assert http_exc.body == ''
+        config_helper = MagicMock()
+        config_helper.__class__ = ConfigHelper
+        config_helper.exc_to_http_exc.return_value = http_exc
+        request = MagicMock()
+        request.environ = {'HTTP_ACCEPT': 'text/html'}
+        exception_view = ConfigHelper.exception_view.__func__
+        result = exception_view(config_helper, sen.exc, request)
+        self.assertIs(result, http_exc)
+        self.assertEqual(http_exc.content_type, 'text/plain')  # no HTML
+        self.assertNotIn('<', http_exc.body)                   # no HTML
+        self.assertIn('404', http_exc.body)
+        self.assertIn('FOO', http_exc.body)
+        self.assertEqual(config_helper.mock_calls, [
+            call.exc_to_http_exc(sen.exc),
+        ])
+
+    def test__exception_view__http_exc_body_already_set(self):
+        http_exc = HTTPNotFound('FOO', body='SPAM', content_type='text/spam')
+        assert http_exc.code == 404
+        assert http_exc.content_type == 'text/spam'
+        assert http_exc.body == 'SPAM'
+        config_helper = MagicMock()
+        config_helper.__class__ = ConfigHelper
+        config_helper.exc_to_http_exc.return_value = http_exc
+        request = MagicMock()
+        request.environ = {'HTTP_ACCEPT': 'text/html'}
+        exception_view = ConfigHelper.exception_view.__func__
+        result = exception_view(config_helper, sen.exc, request)
+        self.assertIs(result, http_exc)
+        self.assertEqual(http_exc.content_type, 'text/spam')
+        self.assertEqual(http_exc.body, 'SPAM')
+        self.assertEqual(config_helper.mock_calls, [
+            call.exc_to_http_exc(sen.exc),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__HTTPException_no_server_error(self, LOGGER):
+        exc = HTTPNotFound()
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIs(http_exc, exc)
+        self.assertEqual(http_exc.code, 404)
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY, 404),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__HTTPException_server_error(self, LOGGER):
+        exc = HTTPServerError()
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIs(http_exc, exc)
+        self.assertEqual(http_exc.code, 500)
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, ANY, 500, exc_info=True),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__AuthorizationError(self, LOGGER):
+        exc = AuthorizationError(public_message='FOO')  # custom public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPForbidden)
+        self.assertEqual(http_exc.code, 403)
+        self.assertEqual(http_exc.detail, 'FOO')  # detail == custom public message
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__AuthorizationError_2(self, LOGGER):
+        exc = AuthorizationError()  # no specific public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPForbidden)
+        self.assertEqual(http_exc.code, 403)
+        self.assertEqual(http_exc.detail,  # detail == default public message
+                         AuthorizationError.default_public_message)
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__TooMuchDataError(self, LOGGER):
+        exc = TooMuchDataError(public_message='FOO')  # custom public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPForbidden)
+        self.assertEqual(http_exc.code, 403)
+        self.assertEqual(http_exc.detail, 'FOO')  # detail == custom public message
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__TooMuchDataError_2(self, LOGGER):
+        exc = TooMuchDataError()  # no specific public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPForbidden)
+        self.assertEqual(http_exc.code, 403)
+        self.assertEqual(http_exc.detail,  # detail == default public message
+                         TooMuchDataError.default_public_message)
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__ParamCleaningError(self, LOGGER):
+        exc = ParamCleaningError(public_message='FOO')  # custom public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPBadRequest)
+        self.assertEqual(http_exc.code, 400)
+        self.assertEqual(http_exc.detail, 'FOO')  # detail == custom public message
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__ParamCleaningError_2(self, LOGGER):
+        exc = ParamCleaningError()  # no specific public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPBadRequest)
+        self.assertEqual(http_exc.code, 400)
+        self.assertEqual(http_exc.detail,  # detail == default public message
+                         ParamCleaningError.default_public_message)
+        self.assertEqual(LOGGER.mock_calls, [
+            call.debug(ANY, exc, ANY),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__ResultCleaningError(self, LOGGER):
+        exc = ResultCleaningError(public_message='FOO')  # custom public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPServerError)
+        self.assertEqual(http_exc.code, 500)
+        self.assertEqual(http_exc.detail, 'FOO')  # detail == custom public message
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, ANY, exc_info=True),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__ResultCleaningError_2(self, LOGGER):
+        exc = ResultCleaningError()  # no specific public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPServerError)
+        self.assertEqual(http_exc.code, 500)
+        self.assertIs(http_exc.detail, None)  # *no* detail
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, ANY, exc_info=True),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__other_DataAPIError(self, LOGGER):
+        exc = DataAPIError(public_message='FOO')  # custom public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPServerError)
+        self.assertEqual(http_exc.code, 500)
+        self.assertEqual(http_exc.detail, 'FOO')  # detail == custom public message
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, ANY, exc_info=True),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__other_DataAPIError_2(self, LOGGER):
+        exc = DataAPIError()  # no specific public message
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPServerError)
+        self.assertEqual(http_exc.code, 500)
+        self.assertIs(http_exc.detail, None)  # *no* detail
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, ANY, exc_info=True),
+        ])
+
+    @patch('n6sdk.pyramid_commons.LOGGER')
+    def test__exc_to_http_exc__other_exception(self, LOGGER):
+        exc = ZeroDivisionError
+        http_exc = ConfigHelper.exc_to_http_exc(exc)
+        self.assertIsInstance(http_exc, HTTPServerError)
+        self.assertEqual(http_exc.code, 500)
+        self.assertIs(http_exc.detail, None)  # no detail
+        self.assertEqual(LOGGER.mock_calls, [
+            call.error(ANY, exc, exc_info=True),
+        ])

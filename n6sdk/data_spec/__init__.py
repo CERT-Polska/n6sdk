@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2014 NASK. All rights reserved.
+# Copyright (c) 2013-2015 NASK. All rights reserved.
 
 """
 .. note::
@@ -81,6 +81,7 @@ CATEGORY_ENUMS = (
     'fraud',
     'leak',
     'malurl',
+    'malware-action',
     'phish',
     'proxy',
     'sandbox-url',
@@ -126,7 +127,44 @@ STATUS_ENUMS = (
 
 
 #
-# The abstract base class
+# Auxiliary classes
+
+class Ext(dict):
+
+    """
+    A :class:`dict`-like class for extending field properties in
+    :class:`DataSpec` subclasses.
+    """
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__,
+                               super(Ext, self).__repr__())
+
+    def copy(self):
+        return self.__class__(self)
+
+    def make_extended_field(self, field):
+        merged_init_kwargs = self.copy()
+        merged_init_kwargs.nondestructive_update(field._init_kwargs)
+        return field.__class__(**merged_init_kwargs)
+
+    def nondestructive_update(self, other):
+        if isinstance(other, collections.Mapping):
+            other = other.iteritems()
+        for key, value in other:
+            stored_value = self.setdefault(key, value)
+            if (stored_value is not value) and isinstance(stored_value, Ext):
+                if isinstance(value, Field):
+                    self[key] = stored_value.make_extended_field(value)
+                elif isinstance(value, collections.Mapping):
+                    merged_value = stored_value.copy()
+                    merged_value.nondestructive_update(value)
+                    self[key] = merged_value
+
+
+
+#
+# The abstract base class for any data specification classes
 
 class BaseDataSpec(object):
 
@@ -179,6 +217,9 @@ class BaseDataSpec(object):
     #
     # public methods (possibly extendable)
 
+    #: .. note::
+    #:    The method should **never** modify the given dictionary (or any
+    #:    of its values).  It should always return a new dictionary.
     def clean_param_dict(self, params,
                          # optional keyword arguments:
                          ignored_keys=(),
@@ -193,6 +234,9 @@ class BaseDataSpec(object):
             exc_class=ParamKeyCleaningError)
         return dict(self._iter_clean_param_items(params, keys))
 
+    #: .. note::
+    #:    The method should **never** modify the given dictionary (or any
+    #:    of its values).
     def clean_param_keys(self, params,
                          # optional keyword arguments:
                          ignored_keys=(),
@@ -217,6 +261,9 @@ class BaseDataSpec(object):
         return dict(field_items)
 
 
+    #: .. note::
+    #:    The method should **never** modify the given dictionary (or any
+    #:    of its values).  It should always return a new dictionary.
     def clean_result_dict(self, result,
                           # optional keyword arguments:
                           ignored_keys=(),
@@ -231,6 +278,9 @@ class BaseDataSpec(object):
             exc_class=ResultKeyCleaningError)
         return dict(self._iter_clean_result_items(result, keys))
 
+    #: .. note::
+    #:    The method should **never** modify the given dictionary (or any
+    #:    of its values).
     def clean_result_keys(self, result,
                           # optional keyword arguments:
                           ignored_keys=(),
@@ -389,341 +439,487 @@ class BaseDataSpec(object):
 
 
 #
-# The concrete base class
+# Concrete data specification base classes
 
 class DataSpec(BaseDataSpec):
 
     """
     The basic, ready-to-use, data specification class.
 
-    You can use it directly or inherit from it.
+    Typically, you will want to create a subclass of it (especially
+    that, by default, all fields are *disabled as query parameters*).
+    For example::
+
+        class MyDataSpec(DataSpec):
+
+            # enable `source` as a query parameter
+            source = Ext(in_params='optional')
+
+            # enable the `time.min` and `time.until` query parameters
+            # (leaving `time.max` still disabled)
+            time = Ext(
+                extra_params=Ext(
+                    min=Ext(in_params='optional'),
+                    until=Ext(in_params='optional'),
+                ),
+            )
+
+            # enable `fqdn` and `fqdn.sub` as query parameters
+            # and add a new query parameter: `fqdn.prefix`
+            fqdn = Ext(
+                in_params='optional',
+                extra_params=Ext(
+                    sub=Ext(in_params='optional'),
+                    prefix=DomainNameSubstringField(in_params='optional'),
+                ),
+            )
+
+            # completely disable the `modified` field
+            modified = None
+
+            # add a new field
+            weekday = UnicodeEnumField(
+                in_params='optional',
+                in_result='optional',
+                enum_values=(
+                    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                    'Friday', 'Saturday', 'Sunday'),
+                ),
+            )
+
+    .. seealso::
+
+        The :class:`AllSearchableDataSpec` class.
     """
 
     #
-    # Identification, categorization and other event metadata
+    # Fields that are always *required in results*
 
     id = UnicodeLimitedField(
-        in_params='optional',
         in_result='required',
         max_length=64,
     )
 
     source = SourceField(
-        in_params='optional',
         in_result='required',
     )
 
     restriction = UnicodeEnumField(
-        in_params='optional',
         in_result='required',
         enum_values=RESTRICTION_ENUMS,
     )
 
     confidence = UnicodeEnumField(
-        in_params='optional',
         in_result='required',
         enum_values=CONFIDENCE_ENUMS,
     )
 
     category = UnicodeEnumField(
-        in_params='optional',
         in_result='required',
         enum_values=CATEGORY_ENUMS,
     )
 
     time = DateTimeField(
-        in_params=None,
+        in_params=None,  # <- should be None even in subclasses
         in_result='required',
 
         extra_params=dict(
             min=DateTimeField(          # `time.min`
-                in_params='optional',
                 single_param=True,
             ),
             max=DateTimeField(          # `time.max`
-                in_params='optional',
                 single_param=True,
             ),
             until=DateTimeField(        # `time.until`
-                in_params='optional',
                 single_param=True,
             ),
         ),
-    )
-
-    modified = DateTimeField(
-        in_params=None,
-        in_result='optional',
-
-        extra_params=dict(
-            min=DateTimeField(          # `modified.min`
-                in_params='optional',
-                single_param=True,
-            ),
-            max=DateTimeField(          # `modified.max`
-                in_params='optional',
-                single_param=True,
-            ),
-            until=DateTimeField(        # `modified.until`
-                in_params='optional',
-                single_param=True,
-            ),
-        ),
-    )
-
-    origin = UnicodeEnumField(
-        in_params='optional',
-        in_result='optional',
-        enum_values=ORIGIN_ENUMS,
-    )
-
-    name = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=255,
-    )
-
-    target = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=100,
     )
 
     #
-    # An `address` is a list of dicts -- each containing either
+    # Fields related to `address`
+
+    # an `address` is a list of dicts -- each containing either
     # `ip` or `ipv6` (but not both) and optionally some or all of:
     # `asn`, `cc`, `dir`, `rdns`
-
     address = ExtendedAddressField(
-        in_params=None,
+        in_params=None,  # <- should be None even in subclasses
         in_result='optional',
     )
 
-    #
-    # Query params related to the components of `address` items
+    # query params related to the components of `address` items
 
     ip = IPv4Field(
-        in_params='optional',
-        in_result=None,
-
+        in_result=None,  # <- should be None even in subclasses
         extra_params=dict(
-            net=IPv4NetField(           # `ip.net`
-                in_params='optional',
-            ),
+            net=IPv4NetField(),         # `ip.net`
         ),
     )
 
     ipv6 = IPv6Field(
-        in_params='optional',
-        in_result=None,
-
+        in_result=None,  # <- should be None even in subclasses
         extra_params=dict(
-            net=IPv6NetField(           # `ipv6.net`
-                in_params='optional',
-            ),
+            net=IPv6NetField(),         # `ipv6.net`
         ),
     )
 
     asn = ASNField(
-        in_params='optional',
-        in_result=None,
+        in_result=None,  # <- should be None even in subclasses
     )
 
     cc = CCField(
-        in_params='optional',
-        in_result=None,
+        in_result=None,  # <- should be None even in subclasses
     )
 
     #
-    # Other "technical" event properties
+    # Fields related only to black list events
 
-    url = URLField(
-        in_params='optional',
-        in_result='optional',
+    active = Field(
+        in_params=None,  # <- should be None even in subclasses
+        in_result=None,  # <- typically will be None even in subclasses
 
         extra_params=dict(
-            sub=URLSubstringField(      # `url.sub`
-                in_params='optional',
+            min=DateTimeField(          # `active.min`
+                single_param=True,
+            ),
+            max=DateTimeField(          # `active.max`
+                single_param=True,
+            ),
+            until=DateTimeField(        # `active.until`
+                single_param=True,
             ),
         ),
     )
 
-    fqdn = DomainNameField(
-        in_params='optional',
-        in_result='optional',
-
-        extra_params=dict(
-            sub=DomainNameSubstringField(   # `fqdn.sub`
-                in_params='optional',
-            ),
-        ),
-    )
-
-    proto = UnicodeEnumField(
-        in_params='optional',
-        in_result='optional',
-        enum_values=PROTO_ENUMS,
-    )
-
-    sport = PortField(
-        in_params='optional',
+    expires = DateTimeField(
+        in_params=None,  # <- should be None even in subclasses
         in_result='optional',
     )
 
-    dport = PortField(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    dip = IPv4Field(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    adip = AnonymizedIPv4Field(
-        in_params=None,
-        in_result='optional',
-    )
-
-    md5 = MD5Field(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    sha1 = SHA1Field(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    injects = ListOfDictsField(
-        in_params=None,
-        in_result='optional',
-    )
-
-    registrar = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=100,
-    )
-
-    url_pattern = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=255,
-    )
-
-    username = UnicodeLimitedField(
-        in_params='optional',
+    replaces = UnicodeLimitedField(
         in_result='optional',
         max_length=64,
     )
 
-    x509fp_sha1 = SHA1Field(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    #
-    # Others...
-
-    email = EmailSimplifiedField(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    iban = IBANSimplifiedField(
-        in_params='optional',
-        in_result='optional',
-    )
-
-    phone = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=20,
-    )
-
-    expires = DateTimeField(
-        in_params=None,
-        in_result='optional',
-    )
-
-    active = Field(
-        in_params=None,
-        in_result=None,
-
-        extra_params=dict(
-            min=DateTimeField(          # `active.min`
-                in_params='optional',
-                single_param=True,
-            ),
-            max=DateTimeField(          # `active.max`
-                in_params='optional',
-                single_param=True,
-            ),
-            until=DateTimeField(        # `active.until`
-                in_params='optional',
-                single_param=True,
-            ),
-        ),
-    )
-
     status = UnicodeEnumField(
-        in_params='optional',
         in_result='optional',
         enum_values=STATUS_ENUMS,
     )
 
-    replaces = UnicodeLimitedField(
-        in_params='optional',
-        in_result='optional',
-        max_length=64,
-    )
-
-    until = DateTimeField(
-        in_params=None,
-        in_result='optional',
-    )
+    #
+    # Fields related only to aggregated (high frequency) events
 
     count = IntegerField(
-        in_params=None,
+        in_params=None,  # <- should be None even in subclasses
         in_result='optional',
         min_value=0,
         max_value=(2 ** 15 - 1),
     )
 
+    until = DateTimeField(
+        in_params=None,  # <- should be None even in subclasses
+        in_result='optional',
+    )
+
+    #
+    # Other fields
+
+    action = UnicodeLimitedField(
+        in_result='optional',
+        max_length=32,
+    )
+
+    adip = AnonymizedIPv4Field(
+        in_result='optional',
+    )
+
+    dip = IPv4Field(
+        in_result='optional',
+    )
+
+    dport = PortField(
+        in_result='optional',
+    )
+
+    email = EmailSimplifiedField(
+        in_result='optional',
+    )
+
+    fqdn = DomainNameField(
+        in_result='optional',
+
+        extra_params=dict(
+            sub=DomainNameSubstringField(),  # `fqdn.sub`
+        ),
+    )
+
+    iban = IBANSimplifiedField(
+        in_result='optional',
+    )
+
+    injects = ListOfDictsField(
+        in_params=None,  # <- should be None even in subclasses
+        in_result='optional',
+    )
+
+    md5 = MD5Field(
+        in_result='optional',
+    )
+
+    modified = DateTimeField(
+        in_params=None,  # <- should be None even in subclasses
+        in_result='optional',
+
+        extra_params=dict(
+            min=DateTimeField(          # `modified.min`
+                single_param=True,
+            ),
+            max=DateTimeField(          # `modified.max`
+                single_param=True,
+            ),
+            until=DateTimeField(        # `modified.until`
+                single_param=True,
+            ),
+        ),
+    )
+
+    name = UnicodeLimitedField(
+        in_result='optional',
+        max_length=255,
+    )
+
+    origin = UnicodeEnumField(
+        in_result='optional',
+        enum_values=ORIGIN_ENUMS,
+    )
+
+    phone = UnicodeLimitedField(
+        in_result='optional',
+        max_length=20,
+    )
+
+    proto = UnicodeEnumField(
+        in_result='optional',
+        enum_values=PROTO_ENUMS,
+    )
+
+    registrar = UnicodeLimitedField(
+        in_result='optional',
+        max_length=100,
+    )
+
+    sha1 = SHA1Field(
+        in_result='optional',
+    )
+
+    sport = PortField(
+        in_result='optional',
+    )
+
+    target = UnicodeLimitedField(
+        in_result='optional',
+        max_length=100,
+    )
+
+    url = URLField(
+        in_result='optional',
+        extra_params=dict(
+            sub=URLSubstringField(),    # `url.sub`
+        ),
+    )
+
+    url_pattern = UnicodeLimitedField(
+        in_result='optional',
+        max_length=255,
+        disallow_empty=True,
+    )
+
+    username = UnicodeLimitedField(
+        in_result='optional',
+        max_length=64,
+    )
+
+    x509fp_sha1 = SHA1Field(
+        in_result='optional',
+    )
 
 
-#
-# Auxiliary classes
 
-class Ext(dict):
+class AllSearchableDataSpec(DataSpec):
 
     """
-    A :class:`dict`-like class for extending field properties in
-    :class:`DataSpec` subclasses.
+    A :class:`DataSpec` subclass with most of its fields marked as searchable.
+
+    You may want to use this class instead of :class:`DataSpec` if your
+    data backend makes it easy to search by various event attributes.
+
+    Typically, you will want to create a subclass of
+    :class:`AllSearchableDataSpec` (e.g., to disable
+    some searchable parameters).  For example::
+
+        class MyDataSpec(AllSearchableDataSpec):
+
+            # disable `source` as a query parameter
+            source = Ext(in_params=None)
+
+            # disable the `time.max` query parameter
+            # (leaving `time.min` and `time.until` still enabled)
+            time = Ext(
+                extra_params=Ext(
+                    max=Ext(in_params=None),
+                ),
+            )
+
+            # disable the `fqdn.sub` query parameter and, at the
+            # same time, add a new query parameter: `fqdn.prefix`
+            fqdn = Ext(
+                extra_params=Ext(
+                    sub=Ext(in_params=None),
+                    prefix=DomainNameSubstringField(in_params='optional'),
+                ),
+            )
+
+            # completely disable the `modified` field (together with the
+            # related "extra params": `modified.min` etc.)
+            modified = None
+
+            # add a new field
+            weekday = UnicodeEnumField(
+                in_params='optional',
+                in_result='optional',
+                enum_values=(
+                    'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                    'Friday', 'Saturday', 'Sunday'),
+                ),
+            )
     """
 
-    def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__,
-                               super(Ext, self).__repr__())
+    #
+    # Fields that are always *required in results*
 
-    def copy(self):
-        return self.__class__(self)
+    id = Ext(in_params='optional')
 
-    def make_extended_field(self, field):
-        merged_init_kwargs = self.copy()
-        merged_init_kwargs.nondestructive_update(field._init_kwargs)
-        return field.__class__(**merged_init_kwargs)
+    source = Ext(in_params='optional')
 
-    def nondestructive_update(self, other):
-        if isinstance(other, collections.Mapping):
-            other = other.iteritems()
-        for key, value in other:
-            stored_value = self.setdefault(key, value)
-            if (stored_value is not value) and isinstance(stored_value, Ext):
-                if isinstance(value, Field):
-                    self[key] = stored_value.make_extended_field(value)
-                elif isinstance(value, collections.Mapping):
-                    merged_value = stored_value.copy()
-                    merged_value.nondestructive_update(value)
-                    self[key] = merged_value
+    restriction = Ext(in_params='optional')
+
+    confidence = Ext(in_params='optional')
+
+    category = Ext(in_params='optional')
+
+    time = Ext(
+        extra_params=Ext(
+            min=Ext(in_params='optional'),
+            max=Ext(in_params='optional'),
+            until=Ext(in_params='optional'),
+        ),
+    )
+
+    #
+    # Fields related to `address`
+
+    # (the `address` field from the superclass remains unchanged)
+
+    ip = Ext(
+        in_params='optional',
+        extra_params=Ext(
+            net=Ext(in_params='optional'),
+        ),
+    )
+
+    ipv6 = Ext(
+        in_params='optional',
+        extra_params=Ext(
+            net=Ext(in_params='optional'),
+        ),
+    )
+
+    asn = Ext(in_params='optional')
+
+    cc = Ext(in_params='optional')
+
+    #
+    # Fields related only to black list events
+
+    active = Ext(
+        extra_params=Ext(
+            min=Ext(in_params='optional'),
+            max=Ext(in_params='optional'),
+            until=Ext(in_params='optional'),
+        ),
+    )
+
+    # (the `expires` field from the superclass remains unchanged)
+
+    replaces = Ext(in_params='optional')
+
+    status = Ext(in_params='optional')
+
+    #
+    # Fields related only to aggregated (high frequency) events
+
+    # (the `count` field from the superclass remains unchanged)
+    # (the `until` field from the superclass remains unchanged)
+
+    #
+    # Other fields
+
+    action = Ext(in_params='optional')
+
+    # (the `adip` field from the superclass remains unchanged)
+
+    dip = Ext(in_params='optional')
+
+    dport = Ext(in_params='optional')
+
+    email = Ext(in_params='optional')
+
+    fqdn = Ext(
+        in_params='optional',
+        extra_params=Ext(
+            sub=Ext(in_params='optional'),
+        ),
+    )
+
+    iban = Ext(in_params='optional')
+
+    # (the `injects` field from the superclass remains unchanged)
+
+    md5 = Ext(in_params='optional')
+
+    modified = Ext(
+        extra_params=Ext(
+            min=Ext(in_params='optional'),
+            max=Ext(in_params='optional'),
+            until=Ext(in_params='optional'),
+        ),
+    )
+
+    name = Ext(in_params='optional')
+
+    origin = Ext(in_params='optional')
+
+    phone = Ext(in_params='optional')
+
+    proto = Ext(in_params='optional')
+
+    registrar = Ext(in_params='optional')
+
+    sha1 = Ext(in_params='optional')
+
+    sport = Ext(in_params='optional')
+
+    target = Ext(in_params='optional')
+
+    url = Ext(
+        in_params='optional',
+        extra_params=Ext(
+            sub=Ext(in_params='optional'),
+        ),
+    )
+
+    url_pattern = Ext(in_params='optional')
+
+    username = Ext(in_params='optional')
+
+    x509fp_sha1 = Ext(in_params='optional')

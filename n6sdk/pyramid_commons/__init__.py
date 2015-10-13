@@ -16,12 +16,12 @@ import itertools
 import logging
 
 from pyramid.config import Configurator
-from pyramid.decorator import reify
 from pyramid.httpexceptions import (
+    HTTPException,
     HTTPBadRequest,
     HTTPForbidden,
-    HTTPServerError,
     HTTPNotFound,
+    HTTPServerError,
 )
 from pyramid.response import Response
 from pyramid.security import (
@@ -33,6 +33,7 @@ from pyramid.security import (
 
 from n6sdk.class_helpers import attr_required
 from n6sdk.data_spec import BaseDataSpec
+from n6sdk.encoding_helpers import ascii_str
 from n6sdk.exceptions import (
     DataAPIError,
     AuthorizationError,
@@ -43,7 +44,7 @@ from n6sdk.exceptions import (
 from n6sdk.pyramid_commons import renderers as standard_stream_renderers
 
 
-LOGGER = logging.getLogger()
+LOGGER = logging.getLogger(__name__)
 
 
 
@@ -110,6 +111,7 @@ class DefaultStreamViewBase(object):
     renderers = None
     data_spec = None
     data_backend_api_method = None
+    adjust_exc = None
 
     #: Can be set to False in a subclass to skip result
     #: records that could not be cleaned (by default
@@ -118,7 +120,7 @@ class DefaultStreamViewBase(object):
 
     @classmethod
     def concrete_view_class(cls, resource_id, renderers, data_spec,
-                            data_backend_api_method):
+                            data_backend_api_method, adjust_exc):
         """
         Create a concrete view subclass (for a particular REST API resource).
 
@@ -127,7 +129,7 @@ class DefaultStreamViewBase(object):
 
         Args/kwargs:
             `resource_id` (string):
-                The identified of the HTTP resource (as given as the
+                The identifier of the HTTP resource (as given as the
                 first argument for the :class:`HttpResource` costructor).
             `renderers` (:class:`frozenset` of strings):
                 Names of available stream renderers (each of them should
@@ -137,7 +139,25 @@ class DefaultStreamViewBase(object):
                 The data spec object used to validate and adjust query
                 parameters and output data.
             `data_backend_api_method` (string):
-                The name of a data backend API method to be called by the view.
+                The name of a data backend API method to be called by the
+                view.
+            `adjust_exc` (callable object):
+                A callable that will be called when an exception
+                (derived from :exc:`~exceptions.Exception`) occurs
+                during response generation.  The callable must take one
+                argument: an instance of :exc:`~exceptions.Exception`
+                (or of its subclass).  The callable must return any
+                exception object -- it can be either a new exception or
+                the given exception object (possibly somewhat enriched).
+
+                .. note::
+
+                    Typically the callable is
+                    :meth:`ConfigHelper.exc_to_http_exc` (for details,
+                    see the source code of:
+                    :meth:`HttpResource.configure_views`,
+                    :meth:`ConfigHelper.complete` and
+                    :meth:`ConfigHelper.exc_to_http_exc`).
 
         Returns:
             A concrete subclass of the class.
@@ -158,19 +178,21 @@ class DefaultStreamViewBase(object):
 
         if isinstance(data_spec, type) and issubclass(data_spec, BaseDataSpec):
             raise TypeError(
-                'a BaseDataSpec *subclass* has been passed but an '
-                '*instance* of a BaseDataSpec subclass is needed')
+                'a BaseDataSpec *subclass* given but an *instance* '
+                'of a BaseDataSpec subclass is needed')
 
         _resource_id = resource_id
         _renderers = renderers
         _data_spec = data_spec
         _data_backend_api_method = data_backend_api_method
+        _adjust_exc = adjust_exc
 
         class view_class(cls):
             resource_id = _resource_id
             renderers = _renderers
             data_spec = _data_spec
             data_backend_api_method = _data_backend_api_method
+            adjust_exc = _adjust_exc
 
         view_class.__name__ = '_{0}_subclass_for_{1}'.format(
               cls.__name__,
@@ -179,15 +201,20 @@ class DefaultStreamViewBase(object):
         return view_class
 
 
-    @attr_required('resource_id', 'renderers', 'data_spec', 'data_backend_api_method')
+    @attr_required(
+        'resource_id', 'renderers', 'data_spec',
+        'data_backend_api_method', 'adjust_exc',
+    )
     def __init__(self, context, request):
         self.request = request
+        self.renderer_name = self._get_renderer_name()
 
-    @reify
-    def renderer_name(self):
+    def _get_renderer_name(self):
         renderer_name = self.request.matchdict.get('renderer', None)
         if renderer_name not in self.renderers:
-            raise HTTPNotFound
+            raise HTTPNotFound(u'{} - unknown format: "{}".'.format(
+                self.request.path_info,
+                renderer_name))
         return renderer_name
 
     def __call__(self):
@@ -198,19 +225,9 @@ class DefaultStreamViewBase(object):
     def prepare_params(self):
         param_dict = dict(self.iter_deduplicated_params())
         clean_param_dict_kwargs = self.get_clean_param_dict_kwargs()
-        try:
-            return self.data_spec.clean_param_dict(
-                param_dict,
-                **clean_param_dict_kwargs)
-        except AuthorizationError as exc:
-            LOGGER.debug('Authorization not successful: %r', exc)
-            raise HTTPForbidden(exc.public_message)
-        except ParamCleaningError as exc:
-            LOGGER.debug('Request parameters not valid: %r', exc)
-            raise HTTPBadRequest(exc.public_message)
-        except DataAPIError as exc:
-            LOGGER.exception('Data backend API error: %r', exc)
-            raise HTTPServerError(exc.public_message)
+        return self.data_spec.clean_param_dict(
+            param_dict,
+            **clean_param_dict_kwargs)
 
     def iter_deduplicated_params(self):
         chain_iterables = itertools.chain.from_iterable
@@ -222,10 +239,7 @@ class DefaultStreamViewBase(object):
 
     def call_api(self):
         api_method_name = self.data_backend_api_method
-        api_method = getattr(self.request.registry.data_backend_api, api_method_name, None)
-        if api_method is None:
-            LOGGER.exception('Data backend API has no method %r', api_method_name)
-            raise HTTPServerError
+        api_method = getattr(self.request.registry.data_backend_api, api_method_name)
         clean_result_dict = self.data_spec.clean_result_dict
         clean_result_dict_kwargs = self.get_clean_result_dict_kwargs()
         try:
@@ -241,18 +255,8 @@ class DefaultStreamViewBase(object):
                         LOGGER.error(
                             'Some results not yielded due '
                             'to the cleaning error: %r', exc)
-        except AuthorizationError as exc:
-            LOGGER.debug('Authorization not successful: %r', exc)
-            raise HTTPForbidden(exc.public_message)
-        except TooMuchDataError as exc:
-            LOGGER.debug('Too much data requested: %r', exc)
-            raise HTTPForbidden(exc.public_message)
-        except ResultCleaningError as exc:
-            LOGGER.exception('Result cleaning error: %r', exc)
-            raise HTTPServerError(exc.public_message)
-        except DataAPIError as exc:
-            LOGGER.exception('Data backend API error: %r', exc)
-            raise HTTPServerError(exc.public_message)
+        except Exception as exc:
+            raise self.adjust_exc(exc)
 
     def call_api_method(self, api_method):
         return api_method(
@@ -278,7 +282,7 @@ class HttpResource(object):
 
     Required constructor arguments (all of them are keyword-only!):
         `resource_id` (string):
-            The identified of the HTTP resource.
+            The identifier of the HTTP resource.
             It will be used as the Pyramid route name.
         `url_pattern` (string):
             A URL path pattern ending with the ``.{renderer}``
@@ -339,7 +343,7 @@ class HttpResource(object):
         self.permission = permission
         return super(HttpResource, self).__init__(**kwargs)
 
-    def configure_views(self, config):
+    def configure_views(self, config, adjust_exc):
         """
         Automatically called by :meth:`ConfigHelper.make_wsgi_app` or
         :meth:`ConfigHelper.complete`.
@@ -350,6 +354,7 @@ class HttpResource(object):
             self.renderers,
             self.data_spec,
             self.data_backend_api_method,
+            adjust_exc,
         )
         config.add_route(route_name, self.url_pattern)
         config.add_view(
@@ -377,7 +382,7 @@ class ConfigHelper(object):
 
         def main(global_config, **settings):
             helper = ConfigHelper(
-                settings,
+                settings=settings,
                 data_backend_api_class=MyDataBackendAPI,
                 authentication_policy=MyCustomAuthenticationPolicy(settings),
                 resources=RESOURCES,
@@ -385,6 +390,8 @@ class ConfigHelper(object):
             ...  # <- here you can call any methods of the helper.config object
             ...  #    which is a pyramid.config.Configurator instance
             return helper.make_wsgi_app()
+
+    Note: all constructor arguments should be specified as keyword arguments.
     """
 
     #: (overridable attribute)
@@ -394,7 +401,6 @@ class ConfigHelper(object):
     default_root_factory = DefaultRootFactory
 
     def __init__(self,
-                 # note: all the arguments should be passed as keyword arguments
                  settings,
                  data_backend_api_class,
                  authentication_policy,
@@ -443,11 +449,82 @@ class ConfigHelper(object):
         return self.data_backend_api_class(settings=self.settings)
 
     def complete(self):
+        self.config.add_view(view=self.exception_view, context=Exception)
+        self.config.add_view(view=self.exception_view, context=HTTPException)
         for res in self.resources:
-            res.configure_views(self.config)
+            res.configure_views(self.config, adjust_exc=self.exc_to_http_exc)
         if self.static_view_config:
             self.config.add_static_view(**self.static_view_config)
         self._completed = True
+
+    @classmethod
+    def exception_view(cls, exc, request):
+        http_exc = cls.exc_to_http_exc(exc)
+        assert isinstance(http_exc, HTTPException)
+        # force a plain-text (non-HTML) response
+        # if http_exc.body has not been set yet
+        environ_copy = request.environ.copy()
+        environ_copy.pop('HTTP_ACCEPT', None)
+        http_exc.prepare(environ_copy)
+        return http_exc
+
+    @classmethod
+    def exc_to_http_exc(cls, exc):
+        """
+        Takes any :exc:`~exceptions.Exception` instance, returns a
+        :exc:`pyramid.httpexceptions.HTTPException` instance.
+        """
+        if isinstance(exc, HTTPException):
+            code = getattr(exc, 'code', None)
+            if isinstance(code, (int, long)) and 200 <= code < 500:
+                LOGGER.debug(
+                    'HTTPException: %r ("%s", code: %s)',
+                    exc, ascii_str(exc), code)
+            else:
+                LOGGER.error(
+                    'HTTPException: %r ("%s", code: %r)',
+                    exc, ascii_str(exc), code,
+                    exc_info=True)
+            http_exc = exc
+        elif isinstance(exc, AuthorizationError):
+            LOGGER.debug(
+                'Authorization not successful: %r (public message: "%s")',
+                exc, ascii_str(exc.public_message))
+            http_exc = HTTPForbidden(exc.public_message)
+        elif isinstance(exc, ParamCleaningError):
+            LOGGER.debug(
+                'Request parameters not valid: %r (public message: "%s")',
+                exc, ascii_str(exc.public_message))
+            http_exc = HTTPBadRequest(exc.public_message)
+        elif isinstance(exc, TooMuchDataError):
+            LOGGER.debug(
+                'Too much data requested: %r (public message: "%s")',
+                exc, ascii_str(exc.public_message))
+            http_exc = HTTPForbidden(exc.public_message)
+        else:
+            if isinstance(exc, DataAPIError):
+                if isinstance(exc, ResultCleaningError):
+                    LOGGER.error(
+                        'Result cleaning error: %r (public message: "%s")',
+                        exc, ascii_str(exc.public_message),
+                        exc_info=True)
+                else:
+                    LOGGER.error(
+                        '%r (public message: "%s")',
+                        exc, ascii_str(exc.public_message),
+                        exc_info=True)
+                public_message = (
+                    None
+                    if exc.public_message == DataAPIError.default_public_message
+                    else exc.public_message)
+            else:
+                LOGGER.error(
+                    'Non-HTTPException/DataAPIError exception: %r',
+                    exc,
+                    exc_info=True)
+                public_message = None
+            http_exc = HTTPServerError(public_message)
+        return http_exc
 
 
 

@@ -152,6 +152,9 @@ class Field(object):
 
         The default implementation just passes the value unchanged.
         This method can be extended (using :func:`super`) in subclasses.
+
+        The method should always return a new object,
+        **never** modifying the given value in-place.
         """
         return value
 
@@ -253,6 +256,8 @@ class UnicodeField(Field):
     encoding = 'utf-8'
     decode_error_handling = 'strict'
 
+    disallow_empty = False
+
     def clean_param_value(self, value):
         value = super(UnicodeField, self).clean_param_value(value)
         value = self._fix_value(value)
@@ -280,13 +285,17 @@ class UnicodeField(Field):
         return value
 
     def _validate_value(self, value):
-        pass
+        if self.disallow_empty and not value:
+            raise FieldValueError(public_message=u'The value is empty')
 
 
 class HexDigestField(UnicodeField):
 
     """
     For hexadecimal digests (hashes), such as *MD5*, *SHA256* or any other.
+
+    Uppercase letters (``A``-``F``) that values may contain are normalized
+    to lowercase.
 
     The constructor-arguments-or-subclass-attributes:
     :attr:`num_of_characters` (the exact number of characters each hex
@@ -487,7 +496,7 @@ class IPv6Field(UnicodeField):
       "exploded" form, such as
       ``u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'``;
 
-    * when cleaning a result value -- the address is normalized to an
+    * when cleaning a result value -- the address is normalized to a
       "compressed" form, such as ``u'2001:db8:85a3::8a2e:370:7334'``.
     """
 
@@ -585,7 +594,7 @@ class IPv6NetField(UnicodeField):
     * when cleaning a result value --
 
       * a unicode string is returned;
-      * the address part is normalized to an "compressed" form, such as
+      * the address part is normalized to a "compressed" form, such as
         ``u'2001:db8:85a3::8a2e:370:7334'``.
     """
 

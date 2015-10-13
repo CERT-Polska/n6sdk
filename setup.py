@@ -25,11 +25,20 @@ with open(osp.join(setup_dir, 'README.rst')) as f:
 
 setup(
     name="n6sdk",
-    version='0.5.0',
+    version='0.6.0',
     packages=find_packages(),
     dependency_links=dep_links,
     install_requires=requirements,
-    tests_require=requirements + ['mock'],
+    include_package_data=True,
+    entry_points={
+        'console_scripts': [
+            'n6sdk_api_test = n6sdk._api_test_tool.api_test_tool:main',
+        ],
+        'pyramid.scaffold': [
+            'n6sdk = n6sdk.scaffolds:BasicN6SDKTemplate',
+        ],
+    },
+    tests_require=(requirements + ['mock==1.0.1']),
     test_suite="n6sdk.tests",
 
     description='An *n6*-like REST API server framework.',

@@ -1,3 +1,134 @@
+0.6.0 (2015-10-13)
+==================
+
+Major or backward incompatible changes:
+
+* Documentation: some **security-related** fixes in the *Installation
+  for production...* and *Gluing it together* sections of the
+  *Tutorial* -- especially, related to necessary access restrictions
+  on ``production.ini`` file.
+
+* A new utility script added: ``n6sdk_api_test``.  It is -- a tool to
+  perform basic validation of your *n6sdk*-based API.  (The script is
+  automatically installed in the appropriate place when you install
+  *n6sdk*.)
+
+  See: the *n6sdk_api_test: API testing tool* chapter of the
+  documentation.
+
+* A new Pyramid *scaffold* added that makes it easy to create a
+  skeleton of a new *n6sdk*-based REST API project -- just run the
+  shell command: ``pcreate -s n6sdk YourProjectName`` (within the
+  *virtualenv* in which *n6sdk* has been installed).
+
+  See: the updated *Tutorial*.
+
+* The `n6sdk.data_spec.DataSpec` data specification class has been
+  deeply changed as well as a new data specification class has been
+  added: `n6sdk.data_spec.AllSearchableDataSpec` (being a subclass of
+  `DataSpec`).
+
+  Now, all field specifications defined within `DataSpec` have the
+  flag ``in_params`` set to ``None``, that is, are *not* marked as
+  query parameters.
+
+  It means that you need to create a subclass of `DataSpec` and, in
+  that subclass, extend desired field specifications to *enable* them
+  explicitly as query parameters (e.g., by using
+  ``Ext(in_params='optional')``).
+
+  Alternatively, you can create a subclass of `AllSearchableDataSpec`
+  (which is a `DataSpec` subclass similar to the previous version of
+  `DataSpec`, i.e., with most of fields marked as possible query
+  parameters, using ``in_params='optional'``) -- then you may want to
+  extend some field specifications (by using ``Ext(in_params=None)``)
+  to *disable* them as query parameters.
+
+  See: the updated *Tutorial*.
+
+* Now, the field specification `DataSpec.category.url_pattern`
+  requires that ``url_pattern`` values (concerning query parameter
+  values as well as result values), if present, are *not* empty.
+
+  To implement this restriction, a new boolean flag has been added to
+  `n6sdk.data_spec.fields.UnicodeField` (and all its subclasses):
+  ``disallow_empty``, settable as a constructor argument or a subclass
+  attribute.  If the flag is true, values are not allowed to be empty.
+  The default value of the flag is ``False``.
+
+* A fix that affects `n6sdk.data_spec.DataSpec.fqdn`,
+  `n6sdk.data_spec.fields.DomainNameField` as well as
+  `n6sdk.regexes.DOMAIN_ASCII_LOWERCASE_REGEX` and
+  `n6sdk.regexes.DOMAIN_ASCII_LOWERCASE_STRICT_REGEX`: now, the
+  top-level part of a domain name (TLD) is no longer allowed to
+  consist of digits only (thanks to that, the possibility to
+  erroneously accept an IPv4 address as a domain name has been
+  suppressed).
+
+* HTTP error handling has been revamped.  Among others, now
+  ``content-type`` of HTTP error pages is set to ``text/plain`` (not
+  to ``text/html``).
+
+  A few significant changes related to that novelties have been
+  applied to the following `n6sdk.pyramid_commons` classes:
+  `DefaultStreamViewBase`, `HttpResource` and `ConfigHelper` (please
+  analyze their code if you need detailed information); most notably:
+
+  * the `DefaultStreamViewBase.concrete_view_class()` class method
+    takes the fifth obligatory argument (and obligatory subclass
+    attribute): ``adjust_exc`` (see the documentation of the method);
+
+  * the `HttpResource.configure_views()` method (which calls
+    `DefaultStreamViewBase.concrete_view_class()`) takes the second
+    obligatory argument: ``adjust_exc``;
+
+  * the `ConfigHelper.complete()` method (called, if needed, by
+    `ConfigHelper.make_wsgi_app()`) registers appropriate Pyramid
+    *exception views* as well as specifies appropriate callable as the
+    ``adjust_exc`` argument for `HttpResource.configure_views()` (if
+    you are interested in details, please, see the `ConfigHelper`
+    source code, especially the code of `complete()` and of two new
+    class methods: `exception_view()` and `exc_to_http_exc()`).
+
+* Now, all `ConfigHelper` constructor arguments are *officially
+  required* to be specified as keyword arguments (not as positional
+  ones).
+
+* The `pyramid` library (an existing external dependency) is now
+  restricted to be not newer than version `1.5.7`.
+
+* New external dependencies added: `python-cjson`_ and `requests`_
+  (used by the ``n6sdk_api_test`` tool mentioned above).
+
+.. _`python-cjson`: https://pypi.python.org/pypi/python-cjson
+.. _`requests`: http://docs.python-requests.org/en/latest/
+
+
+Other changes:
+
+* A new category added to `DataSpec.category.enum_values`:
+  ``'malware-action'``.
+
+* A new field specification added to `DataSpec`: ``action``, intented
+  to be used for events whose category is ``'malware-action'``
+  (mentioned above).
+
+* A new public helper function added:
+  `n6sdk.pyramid_commons.renderers.data_dict_to_json()`; it defines
+  how the standard renderers ``json`` and ``sjson`` serialize each
+  data record (for details, see the documentation of the function);
+
+* A bugfix: now, log messages from the `n6sdk.pyramid_commons` module
+  are emitted using the ``'n6sdk.pyramid_commons'`` logger rather than
+  the root logger.
+
+* Various minor code cleanups, refactorizations and improvements.
+
+* New and improved unit tests and doctests.
+
+* A lot of documentation improvements and fixes.
+
+
 0.5.0 (2015-04-18)
 ==================
 
@@ -31,21 +162,22 @@ Major or backward incompatible changes:
 
   * the interface of the `n6sdk.exceptions.ParamValueCleaningError`
     constructor has been extended a bit: now the second item of a
-    3-tuple being an item of a `error_info_seq` argument can be either
-    a single value (as previously) or a list of values.
+    3-tuple being an item of an `error_info_seq` argument can be
+    either a single value (as previously) or a list of values.
 
-  The *tutorial* and other parts of the documentation have been
+  The *Tutorial* and other parts of the documentation have been
   adjusted appropriately.
 
-* Significant changes related to *data specification* fields:
+* Significant changes related to *data specification fields*:
 
   * New field classes in the `n6sdk.data_spec.fields` module:
 
     * `IPv6Field` (for IPv6 addresses),
     * `IPv6NetField` (for IPv6 network specifications),
     * `EmailSimplifiedField` (for e-mail addresses),
-    * `IBANSimplifiedField` (for IBAN numbers),
-    * `ListOfDictsField` (for lists of dicts containing arbitrary data),
+    * `IBANSimplifiedField` (for International Bank Account Numbers),
+    * `ListOfDictsField` (for lists of dictionaries containing
+      arbitrary data),
     * `DirField` (two-value enumeration: ``'src'`` or ``'dst'``).
 
   * Modified field classes in the `n6sdk.data_spec.fields`
@@ -56,16 +188,16 @@ Major or backward incompatible changes:
       * the ``key_to_subfield_factory`` attribute is
         no longer obligatory;
       * the ``required_keys`` attribute is gone;
-      * the :meth:`clean_param_value` method now raises `TypeError`
+      * the `clean_param_value()` method now raises `TypeError`
         instead of `NotImplementedError`;
 
     * `AddressField`:
 
-      * now inherits from `ListOfDictsField` and not
-        directly from `ResultListFieldMixin` and `DictResultField`;
+      * now inherits from `ListOfDictsField`, not directly from
+        `ResultListFieldMixin` and `DictResultField`;
       * the ``required_keys`` attribute is gone; ``ip`` subfield is still
         obligatory -- but now this requirement is implemented internally;
-      * the :meth:`clean_param_value` method now raises `TypeError`
+      * the `clean_param_value()` method now raises `TypeError`
         instead of `NotImplementedError`.
 
   * New field specifications added to the `n6sdk.data_spec.DataSpec`
@@ -89,7 +221,7 @@ Major or backward incompatible changes:
     * ``phone`` (`UnicodeLimitedField`).
 
   * The ``address`` field specification (at
-    `n6sdk.data_spec.DataSpec`) has been modified: now it is an
+    `n6sdk.data_spec.DataSpec`) has been changed: now it is an
     `ExtendedAddressField` instance -- its subfields include:
 
     * ``ip``/``ipv6`` (`IPv4Field`/`IPv6Field`, obligatory -- which
@@ -112,9 +244,9 @@ Major or backward incompatible changes:
     * ``'vulnerable'``,
     * ``'webinject'``.
 
-  The *tutorial* has been adjusted appropriately.
+  The *Tutorial* has been adjusted appropriately.
 
-* Both standard renderers (``json`` and ``sjson``) now add the ``Z``
+* Both standard renderers (``json`` and ``sjson``) now add the ``"Z"``
   suffix (indicating the UTC time) to all *date+time* values.
 
 * The ``sjson`` renderer now generates an additional empty line to
@@ -197,7 +329,7 @@ Documentation-related news (including big ones!):
 
 * Now the documentation is generated with `Sphinx`_.
 
-* A new, long tutorial has been added.
+* A new, long *Tutorial* has been added.
 
 * A bunch of docstrings have been added.
 

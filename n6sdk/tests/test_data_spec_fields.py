@@ -4,6 +4,7 @@
 
 
 import collections
+import copy
 import datetime
 import decimal
 import unittest
@@ -76,6 +77,7 @@ class FieldTestMixin(GenericDataSpecTestMixin):
     def test__clean_result_value(self):
         for init_kwargs, given, expected in self.cases__clean_result_value():
             init_kwargs = dict(self.INIT_KWARGS_BASE or {}, **init_kwargs)
+            deep_copy_of_given = copy.deepcopy(given)
             f = self.CLASS(**init_kwargs)
             if isinstance(expected, type) and issubclass(
                   expected, BaseException):
@@ -84,6 +86,15 @@ class FieldTestMixin(GenericDataSpecTestMixin):
             else:
                 cleaned_value = f.clean_result_value(given)
                 self.assertEqualIncludingTypes(cleaned_value, expected)
+            # ensure that the given value has not been modified
+            self.assertEqualIncludingTypes(deep_copy_of_given, given)
+
+
+class ArbitraryObject(object):
+    # the copying methods are provided here to support the
+    # deepcopy-based check in FieldTestMixin.test__clean_result_value()
+    def __copy__(self): return self
+    def __deepcopy__(self, memo): return self
 
 
 class case(collections.namedtuple('case', 'init_kwargs, given, expected')):
@@ -297,12 +308,48 @@ class TestUnicodeField(FieldTestMixin, unittest.TestCase):
             expected=u'kąŧ¹²³',
         )
         yield case(
+            given=u'123abc   '*100000,
+            expected=u'123abc   '*100000,
+        )
+        yield case(
             given='123abc   '*100000,
             expected=u'123abc   '*100000,
         )
         yield case(
+            given=u' ',
+            expected=u' ',
+        )
+        yield case(
             given=' ',
             expected=u' ',
+        )
+        yield case(
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'disallow_empty': False},
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'disallow_empty': False},
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'disallow_empty': True},
+            given=u'',
+            expected=FieldValueError,
+        )
+        yield case(
+            init_kwargs={'disallow_empty': True},
+            given='',
+            expected=FieldValueError,
         )
         yield case(
             given=''.join(map(chr, range(32, 127))),
@@ -694,6 +741,46 @@ class TestUnicodeLimitedField(FieldTestMixin, unittest.TestCase):
             expected=u'abc',
         )
         yield case(
+            init_kwargs={'max_length': 3000},
+            given=u'*^&'*1000,
+            expected=u'*^&'*1000,
+        )
+        yield case(
+            init_kwargs={'max_length': 3000},
+            given='*^&'*1000,
+            expected=u'*^&'*1000,
+        )
+        yield case(
+            init_kwargs={'max_length': 3},
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'max_length': 3},
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'max_length': 3, 'disallow_empty': False},
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'max_length': 3, 'disallow_empty': False},
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'max_length': 3, 'disallow_empty': True},
+            given=u'',
+            expected=FieldValueError,
+        )
+        yield case(
+            init_kwargs={'max_length': 3, 'disallow_empty': True},
+            given='',
+            expected=FieldValueError,
+        )
+        yield case(
             init_kwargs={'max_length': 2},
             given=u'abc',
             expected=FieldValueTooLongError,
@@ -835,6 +922,36 @@ class TestUnicodeRegexField(FieldTestMixin, unittest.TestCase):
             init_kwargs={'regex': r'ab{3}c'},
             given=u'abbbc',
             expected=u'abbbc',
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?'},
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?'},
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?', 'disallow_empty': False},
+            given=u'',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?', 'disallow_empty': False},
+            given='',
+            expected=u'',
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?', 'disallow_empty': True},
+            given=u'',
+            expected=FieldValueError,
+        )
+        yield case(
+            init_kwargs={'regex': r'(foo)?', 'disallow_empty': True},
+            given='',
+            expected=FieldValueError,
         )
 
     def cases__clean_result_value(self):
@@ -2474,6 +2591,22 @@ class TestDomainNameField(FieldTestMixin, unittest.TestCase):
             expected=u'life_does_not_work_according_to.rfc',
         )
         yield case(
+            given='192.168.0.1.foo',
+            expected=u'192.168.0.1.foo',
+        )
+        yield case(
+            given=u'something.example.f123',
+            expected=u'something.example.f123',
+        )
+        yield case(
+            given='192.168.0.1',             # TLD cannot consist of digits only
+            expected=FieldValueError,
+        )
+        yield case(
+            given=u'something.example.123',  # TLD cannot consist of digits only
+            expected=FieldValueError,
+        )
+        yield case(
             given='',
             expected=FieldValueError,
         )
@@ -3194,7 +3327,6 @@ class TestIBANSimplifiedField(FieldTestMixin, unittest.TestCase):
         )
 
 
-# TODO: improve/add test cases
 class TestListOfDictsField(FieldTestMixin, unittest.TestCase):
 
     CLASS = ListOfDictsField
@@ -3206,12 +3338,49 @@ class TestListOfDictsField(FieldTestMixin, unittest.TestCase):
         )
 
     def cases__clean_result_value(self):
-        obj = object()
+        obj = ArbitraryObject()
         yield case(
             given=[{'foo': '12.23.45.56', 'bar': {1234: u'X'}, 'spam': obj}, {}],
             expected=[{u'foo': '12.23.45.56', u'bar': {1234: u'X'}, u'spam': obj}, {}],
         )
         yield case(
+            given=[{'foo': '12.23.45.56'}],
+            expected=[{u'foo': '12.23.45.56'}],
+        )
+        yield case(
+            init_kwargs={'key_to_subfield_factory': {'foo': IPv4Field}},
+            given=[{'foo': '12.23.45.56'}],
+            expected=[{u'foo': u'12.23.45.56'}],
+        )
+        yield case(
+            init_kwargs={'key_to_subfield_factory': {'foo': IPv4Field}},
+            given=[{'bar': '12.23.45.56'}],
+            expected=ValueError,  # 'bar' not in key_to_subfield_factory
+        )
+        yield case(
+            init_kwargs={'key_to_subfield_factory': {'foo': IPv4Field}},
+            given=[{'foo': '12.23.45.56', 'bar': '12.23.45.56'}],
+            expected=ValueError,  # 'bar' not in key_to_subfield_factory
+        )
+        yield case(
+            init_kwargs={'allow_empty': True},
+            given=[],
+            expected=[],
+        )
+        yield case(
+            init_kwargs={
+                'allow_empty': True,
+                'key_to_subfield_factory': {'foo': IPv4Field},
+            },
+            given=[],
+            expected=[],
+        )
+        yield case(
+            given=[],
+            expected=ValueError,
+        )
+        yield case(
+            init_kwargs={'key_to_subfield_factory': {'foo': IPv4Field}},
             given=[],
             expected=ValueError,
         )
@@ -3390,12 +3559,6 @@ class TestExtendedAddressField(TestAddressField):
 
     CLASS = ExtendedAddressField
 
-    def cases__clean_param_value(self):
-        yield case(
-            given='no implementation',
-            expected=TypeError,
-        )
-
     def cases__clean_result_value(self):
         for c in super(TestExtendedAddressField, self).cases__clean_result_value():
             yield c
@@ -3430,16 +3593,29 @@ class TestExtendedAddressField(TestAddressField):
         )
         yield case(
             # bad ipv6
-            given=[{'ip': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:',
-                    'cc': 'PL', 'asn': 123}],
+            given=[{
+                'ip': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334:',
+                'cc': 'PL',
+                'asn': 123,
+            }],
             expected=FieldValueError,
         )
         yield case(
             # ipv6 must be a str or unicode
-            given=[
-                {'ipv6': [u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'],
-                 'cc': 'PL', 'asn': 123}],
+            given=[{
+                'ipv6': [u'2001:0db8:85a3:0000:0000:8a2e:0370:7334'],
+                'cc': 'PL',
+                'asn': 123,
+            }],
             expected=TypeError,
+        )
+        yield case(
+            # illegal key
+            given=[{
+                'ipv6': u'2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+                'illegal': 'foo',
+            }],
+            expected=ValueError,
         )
         yield case(
             # bad dir

@@ -78,6 +78,12 @@ class Test_DOMAIN_ASCII_LOWERCASE_REGEX(unittest.TestCase):
         self.assertRegexpMatches('www.test-.com', self.regex)
         self.assertRegexpMatches(u'www.test.-com', self.regex)
         self.assertRegexpMatches('www.test.com-', self.regex)
+        self.assertRegexpMatches('www.test.z55', self.regex)
+        self.assertRegexpMatches(u'www.test.z55', self.regex)
+        self.assertRegexpMatches('www.15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches(u'www.15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches('15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches(u'15.15.15.15.z55', self.regex)
 
     def test_not_valid(self):
         self.assertNotRegexpMatches('', self.regex)
@@ -100,6 +106,14 @@ class Test_DOMAIN_ASCII_LOWERCASE_REGEX(unittest.TestCase):
                                     self.regex)
         self.assertNotRegexpMatches(u'www.{}.test.com'.format(64 * u'x'),
                                     self.regex)
+        self.assertNotRegexpMatches('www.test.5', self.regex)
+        self.assertNotRegexpMatches(u'www.test.5', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15.z55:1234', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15.z55:1234', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15.z55:z1234', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15.z55:z1234', self.regex)
 
 
 class Test_DOMAIN_ASCII_LOWERCASE_STRICT_REGEX(unittest.TestCase):
@@ -123,6 +137,12 @@ class Test_DOMAIN_ASCII_LOWERCASE_STRICT_REGEX(unittest.TestCase):
                                  self.regex)
         self.assertRegexpMatches(u'www.{}.test.com'.format(63 * u'x'),
                                  self.regex)
+        self.assertRegexpMatches('www.test.z55', self.regex)
+        self.assertRegexpMatches(u'www.test.z55', self.regex)
+        self.assertRegexpMatches('www.15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches(u'www.15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches('15.15.15.15.z55', self.regex)
+        self.assertRegexpMatches(u'15.15.15.15.z55', self.regex)
 
     def test_not_valid(self):
         self.assertNotRegexpMatches(u'not_compliant_with.rfc', self.regex)
@@ -157,6 +177,14 @@ class Test_DOMAIN_ASCII_LOWERCASE_STRICT_REGEX(unittest.TestCase):
                                     self.regex)
         self.assertNotRegexpMatches(u'www.{}.test.com'.format(64 * u'x'),
                                     self.regex)
+        self.assertNotRegexpMatches('www.test.5', self.regex)
+        self.assertNotRegexpMatches(u'www.test.5', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15.z55:1234', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15.z55:1234', self.regex)
+        self.assertNotRegexpMatches('15.15.15.15.z55:z1234', self.regex)
+        self.assertNotRegexpMatches(u'15.15.15.15.z55:z1234', self.regex)
 
 
 class Test_IPv4_STRICT_DECIMAL_REGEX(unittest.TestCase):

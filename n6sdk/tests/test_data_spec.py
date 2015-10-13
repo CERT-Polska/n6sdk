@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2014 NASK. All rights reserved.
+# Copyright (c) 2013-2015 NASK. All rights reserved.
 
 
 import collections
+import copy
 import datetime
 import unittest
 
 from mock import ANY
 
+from n6sdk.class_helpers import (
+    attr_required,
+)
 from n6sdk.data_spec import (
+    AllSearchableDataSpec,
     DataSpec,
     Ext,
 )
@@ -79,7 +84,7 @@ class MixinBase(GenericDataSpecTestMixin):
 
     DEL = object()  # a 'do-not-include-me' sentinel value used here and there
 
-    data_spec_class = DataSpec
+    base_data_spec_class = None  # to be set in actual mix-ins or concrete classes
 
     key_to_field_type = {
         u'id': UnicodeLimitedField,
@@ -91,9 +96,7 @@ class MixinBase(GenericDataSpecTestMixin):
         u'time.min': DateTimeField,
         u'time.max': DateTimeField,
         u'time.until': DateTimeField,
-        u'origin': UnicodeEnumField,
-        u'name': UnicodeLimitedField,
-        u'target': UnicodeLimitedField,
+
         u'address': ExtendedAddressField,
         u'ip': IPv4Field,
         u'ip.net': IPv4NetField,
@@ -101,42 +104,64 @@ class MixinBase(GenericDataSpecTestMixin):
         u'ipv6.net': IPv6NetField,
         u'asn': ASNField,
         u'cc': CCField,
-        u'url': URLField,
-        u'url.sub': URLSubstringField,
-        u'fqdn': DomainNameField,
-        u'fqdn.sub': DomainNameSubstringField,
-        u'proto': UnicodeEnumField,
-        u'sport': PortField,
-        u'dport': PortField,
-        u'dip': IPv4Field,
-        u'adip': AnonymizedIPv4Field,
-        u'md5': MD5Field,
-        u'sha1': SHA1Field,
-        u'injects': ListOfDictsField,
-        u'registrar': UnicodeLimitedField,
-        u'url_pattern': UnicodeLimitedField,
-        u'username': UnicodeLimitedField,
-        u'x509fp_sha1': SHA1Field,
-        u'email': EmailSimplifiedField,
-        u'iban': IBANSimplifiedField,
-        u'phone': UnicodeLimitedField,
-        u'expires': DateTimeField,
+
         u'active.min': DateTimeField,
         u'active.max': DateTimeField,
         u'active.until': DateTimeField,
-        u'modified': DateTimeField,
-        u'modified.min': DateTimeField,
-        u'modified.max': DateTimeField,
-        u'modified.until': DateTimeField,
-        u'status': UnicodeEnumField,
+        u'expires': DateTimeField,
         u'replaces': UnicodeLimitedField,
-        u'until': DateTimeField,
+        u'status': UnicodeEnumField,
+
         u'count': IntegerField,
+        u'until': DateTimeField,
+
+        u'action': UnicodeLimitedField,
+        u'adip': AnonymizedIPv4Field,
+        u'dip': IPv4Field,
+        u'dport': PortField,
+        u'email': EmailSimplifiedField,
+        u'fqdn': DomainNameField,
+        u'fqdn.sub': DomainNameSubstringField,
+        u'iban': IBANSimplifiedField,
+        u'injects': ListOfDictsField,
+        u'md5': MD5Field,
+        u'modified': DateTimeField,
+        u'modified.max': DateTimeField,
+        u'modified.min': DateTimeField,
+        u'modified.until': DateTimeField,
+        u'name': UnicodeLimitedField,
+        u'origin': UnicodeEnumField,
+        u'phone': UnicodeLimitedField,
+        u'proto': UnicodeEnumField,
+        u'registrar': UnicodeLimitedField,
+        u'sha1': SHA1Field,
+        u'sport': PortField,
+        u'target': UnicodeLimitedField,
+        u'url': URLField,
+        u'url.sub': URLSubstringField,
+        u'url_pattern': UnicodeLimitedField,
+        u'username': UnicodeLimitedField,
+        u'x509fp_sha1': SHA1Field,
     }
 
+    @property
+    def optional_keys(self):
+        return self.keys - self.required_keys
+
+    @attr_required('base_data_spec_class')
     def setUp(self):
-        self.ds = self.data_spec_class()
+        data_spec_class = self.get_data_spec_class()
+        self.ds = data_spec_class()
         self._selftest_assertions()
+        self._given_dicts_and_their_deep_copies = []
+
+    def tearDown(self):
+        # ensure that raw param/result dicts (if any) have not been modified
+        for d, dcopy in self._given_dicts_and_their_deep_copies:
+            self.assertEqualIncludingTypes(dcopy, d)
+
+    def get_data_spec_class(self):
+        return self.base_data_spec_class
 
     def _selftest_assertions(self):
         assert self.keys <= set(self.key_to_field_type)
@@ -146,14 +171,13 @@ class MixinBase(GenericDataSpecTestMixin):
         assert (set(self.example_given_dict) ==
                 set(self.example_cleaned_dict))
 
-    @property
-    def optional_keys(self):
-        return self.keys - self.required_keys
-
     def _given_dict(self, **kwargs):
         d = dict(self.example_given_dict, **kwargs)
-        return {k: v for k, v in d.iteritems()
-                if v is not self.DEL}
+        d = {k: v for k, v in d.iteritems()
+             if v is not self.DEL}
+        self._given_dicts_and_their_deep_copies.append(
+            (d, copy.deepcopy(d)))
+        return d
 
     def _cleaned_dict(self, **kwargs):
         d = dict(self.example_cleaned_dict, **kwargs)
@@ -190,25 +214,28 @@ class MixinBase(GenericDataSpecTestMixin):
             self.assertIsInstance(field, self.key_to_field_type[key])
 
 
-class ParamCleanMixin(MixinBase):
+class AllSearchableParamCleanMixin(MixinBase):
 
     # param-fields-related
+
+    base_data_spec_class = AllSearchableDataSpec
 
     key_cleaning_error = ParamKeyCleaningError
 
     keys = {
         u'id', u'source', u'restriction', u'confidence', u'category',
         u'time.min', u'time.max', u'time.until',
-        u'origin', u'name', u'target',
+
         u'ip', u'ip.net', u'ipv6', u'ipv6.net', u'asn', u'cc',
-        u'url', u'url.sub', u'fqdn', u'fqdn.sub',
-        u'proto', u'sport', u'dport', u'dip',
-        u'md5', u'sha1',
-        u'registrar', u'url_pattern', u'username', u'x509fp_sha1',
-        u'email', u'iban', u'phone',
+
         u'active.min', u'active.max', u'active.until',
-        u'modified.min', u'modified.max', u'modified.until',
-        u'status', u'replaces',
+        u'replaces', u'status',
+
+        u'action', u'dip', u'dport', u'email', u'fqdn', u'fqdn.sub',
+        u'iban', u'modified.max', u'modified.min', u'modified.until',
+        u'name', u'md5', u'sha1', u'origin', u'phone', u'proto',
+        u'registrar', u'sport', u'target', u'url', u'url.sub',
+        u'url_pattern', u'username', u'x509fp_sha1',
     }
 
     required_keys = set()
@@ -237,6 +264,7 @@ class ParamCleanMixin(MixinBase):
         'modified.until': [u'2014-04-01 01:07:42+02:00'],
         u'active.min': [u'2015-05-02T24:00'],
         'phone': ['abc', u'+48123456789'],
+        u'url_pattern': ['!@#$%^&* ()'],
         'url': ['http://www.ołówek.EXAMPLĘ.com/\xdd-TRALALą.html'],
         u'fqdn': [u'www.test.org', u'www.ołówek.EXAMPLĘ.com'],
         'url.sub': [('xx' + 682 * '\xcc')],
@@ -262,7 +290,7 @@ class ParamCleanMixin(MixinBase):
         u'asn': [80000, 1],
         u'dport': [1234],
 
-        # (IP network specs converted to (ipv4, number) pairs)
+        # (IP network specs converted to (IP address, number) pairs)
         u'ip.net': [(u'100.101.102.103', 32), (u'1.2.3.4', 7)],
         u'ipv6.net': [(u'2001:0db8:85a3:0000:0000:8a2e:0370:7334', 128)],
 
@@ -271,9 +299,11 @@ class ParamCleanMixin(MixinBase):
         u'modified.until': [datetime.datetime(2014, 3, 31, 23, 7, 42)],
 
         # (24:00 on 2nd of May converted to 00:00 on 3rd of May)
-        u'active.min': [datetime.datetime(2015, 5, 03)],
+        u'active.min': [datetime.datetime(2015, 5, 3)],
 
         u'phone': [u'abc', u'+48123456789'],
+
+        u'url_pattern': [u'!@#$%^&* ()'],
 
         # (non-UTF-8 URL characters surrogate-escaped)
         u'url': [u'http://www.ołówek.EXAMPLĘ.com/\udcdd-TRALALą.html'],
@@ -293,26 +323,46 @@ class ParamCleanMixin(MixinBase):
     example_missing_keys = set()
 
     def _selftest_assertions(self):
-        super(ParamCleanMixin, self)._selftest_assertions()
+        super(AllSearchableParamCleanMixin, self)._selftest_assertions()
         assert self.single_param_keys <= self.keys
+
+
+class NoSearchableParamCleanMixin(MixinBase):
+
+    base_data_spec_class = DataSpec
+
+    key_cleaning_error = ParamKeyCleaningError
+
+    keys = set()
+    required_keys = set()
+    single_param_keys = set()
+
+    example_given_dict = {}
+    example_cleaned_dict = {}
+    example_illegal_keys = AllSearchableParamCleanMixin.keys.copy()
+    example_missing_keys = set()
 
 
 class ResultCleanMixin(MixinBase):
 
     # result-fields-related
 
+    base_data_spec_class = DataSpec
+
     key_cleaning_error = ResultKeyCleaningError
 
     keys = {
         u'id', u'source', u'restriction', u'confidence', u'category', u'time',
-        u'origin', u'name', u'target',
-        u'address', u'url', u'fqdn',
-        u'proto', u'sport', u'dport', u'dip', u'adip',
-        u'md5', u'sha1',
-        u'injects', u'registrar', u'url_pattern', u'username', u'x509fp_sha1',
-        u'email', u'iban', u'phone',
-        u'modified',
-        u'expires', u'status', u'replaces', u'until', u'count',
+        u'address',
+
+        u'expires', u'replaces', u'status',
+
+        u'count', u'until',
+
+        u'action', u'adip', u'dip', u'dport', u'email', u'fqdn',
+        u'iban', u'injects', u'modified', u'name', u'md5', u'sha1',
+        u'origin', u'phone', u'proto', u'registrar', u'sport',
+        u'target', u'url', u'url_pattern', u'username', u'x509fp_sha1',
     }
 
     required_keys = {
@@ -396,65 +446,10 @@ class ResultCleanMixin(MixinBase):
 
 
 #
-# Similar mix-ins for tests of a DataSpec subclass
+# Similar mix-ins for tests of a DataSpec/AllSearchableDataSpec subclass
 # (with extended/removed/replaced/added fields)
 
 class SubclassMixinBase(MixinBase):
-
-    class data_spec_class(DataSpec):
-        id = Ext(                        # extended
-            in_params='required',
-            # (note: `in_result` left as 'required')
-            max_length=3,
-        )
-        category = None                  # removed (masked)
-        dport = IntegerField(            # replaced
-            in_params='optional',
-            in_result=None,
-            min_value=10000,
-            max_value=65535,
-        )
-        justnew = UnicodeField(          # added
-            in_params='optional',
-            in_result='required',
-        )
-        singular = UnicodeField(         # added
-            in_params='optional',
-            in_result=None,
-            single_param=True,           # (single-value-only param)
-        )
-        notused = UnicodeField()     # not used because not tagged as
-                                     # `in_params` and/or `in_results`
-
-        url = Ext(                       # extended
-            extra_params=Ext(            #  extended
-                sub=Ext(                 #   extended
-                    max_length=100,
-                    checking_bytes_length=False,
-                    in_params='required',
-                    # (note: `in_result` left as None)
-                )
-            ),
-            in_params=None,
-            # (note: `in_result` left as 'optional')
-            custom_info=dict(
-                tralala=dict(ham='spam'),
-            ),
-        )
-        active = Ext(                    # extended
-            extra_params=Ext(            #  extended
-                min=IntegerField(        #   replaced
-                    in_params='optional',
-                    # (note: `in_result` left as None)
-                ),
-                max=None,                #   removed (masked)
-            )
-        )
-        fqdn = Ext(                      # extended
-            extra_params={},             #  replaced (removing 'fqdn.sub')
-            in_result='required',
-            # (note: `in_params` left as 'optional')
-        )
 
     # adjusting test class attributes to match the above data spec subclass
     key_to_field_type = MixinBase.key_to_field_type.copy()
@@ -468,22 +463,79 @@ class SubclassMixinBase(MixinBase):
         u'singular': UnicodeField,
     })
 
+    def get_data_spec_class(self):
+        class DataSpecSubclass(self.base_data_spec_class):
+            id = Ext(                        # extended
+                in_params='required',
+                # (note: `in_result` left as 'required')
+                max_length=3,
+            )
+            category = None                  # removed (masked)
+            dport = IntegerField(            # replaced
+                in_params='optional',
+                in_result=None,
+                min_value=10000,
+                max_value=65535,
+            )
+            justnew = UnicodeField(          # added
+                in_params='optional',
+                in_result='required',
+            )
+            singular = UnicodeField(         # added
+                in_params='optional',
+                in_result=None,
+                single_param=True,           # (single-value-only param)
+            )
+            notused = UnicodeField()     # not used because not tagged as
+                                         # `in_params` and/or `in_results`
 
-class SubclassParamCleanMixin(SubclassMixinBase, ParamCleanMixin):
+            url = Ext(                       # extended
+                extra_params=Ext(            #  extended
+                    sub=Ext(                 #   extended
+                        max_length=100,
+                        checking_bytes_length=False,
+                        in_params='required',
+                        # (note: `in_result` left as None)
+                    )
+                ),
+                in_params=None,
+                # (note: `in_result` left as 'optional')
+                custom_info=dict(
+                    tralala=dict(ham='spam'),
+                ),
+            )
+            active = Ext(                    # extended
+                extra_params=Ext(            #  extended
+                    min=IntegerField(        #   replaced
+                        in_params='optional',
+                        # (note: `in_result` left as None)
+                    ),
+                    max=None,                #   removed (masked)
+                )
+            )
+            fqdn = Ext(                      # extended
+                extra_params={},             #  replaced (removing 'fqdn.sub')
+                in_result='required',
+                # (note: `in_params` left as 'optional')
+            )
+        return DataSpecSubclass
+
+
+class SubclassParamCleanMixin(SubclassMixinBase, AllSearchableParamCleanMixin):
 
     # param-fields-related
 
-    keys = ParamCleanMixin.keys.copy()
+    keys = AllSearchableParamCleanMixin.keys.copy()
     keys -= {u'category', u'url', u'fqdn.sub', u'active.max'}
     keys |= {u'justnew', u'singular'}
 
     required_keys = {u'id', u'url.sub'}
 
-    single_param_keys = ParamCleanMixin.single_param_keys.copy()
+    single_param_keys = AllSearchableParamCleanMixin.single_param_keys.copy()
     single_param_keys -= {u'active.min', u'active.max'}
     single_param_keys |= {u'singular'}
 
-    example_given_dict = ParamCleanMixin.example_given_dict.copy()
+    example_given_dict = AllSearchableParamCleanMixin.example_given_dict.copy()
     del example_given_dict[u'category']
     del example_given_dict[u'url']
     del example_given_dict[u'fqdn.sub']
@@ -496,7 +548,7 @@ class SubclassParamCleanMixin(SubclassMixinBase, ParamCleanMixin):
         u'singular': ['xyz'],
     })
 
-    example_cleaned_dict = ParamCleanMixin.example_cleaned_dict.copy()
+    example_cleaned_dict = AllSearchableParamCleanMixin.example_cleaned_dict.copy()
     del example_cleaned_dict['category']
     del example_cleaned_dict['url']
     del example_cleaned_dict['fqdn.sub']
@@ -571,15 +623,10 @@ class SubclassResultCleanMixin(SubclassMixinBase, ResultCleanMixin):
     }
 
 
-
 #
-# Concrete test cases
-#
+# Additional mix-ins that provide some typical test methods
 
-#
-# Param-fields-related:
-
-class TestDataSpec_clean_param_dict(ParamCleanMixin, unittest.TestCase):
+class MixInProvidingTestMethodsFor__clean_param_dict(MixinBase):
 
     def test_valid(self):
         given_dict = self._given_dict()
@@ -601,78 +648,8 @@ class TestDataSpec_clean_param_dict(ParamCleanMixin, unittest.TestCase):
     def test_missing_keys(self):
         self._test_missing_keys(self.ds.clean_param_dict)
 
-    def test_invalid_value__source_too_long(self):
-        given_dict = self._given_dict(
-            source=['some.source', 'some.otherrrrrrrrrrrrrrrrrrrrrrr' + 'x'])
-        with self.assertRaises(ParamValueCleaningError) as cm:
-            self.ds.clean_param_dict(given_dict)
-        exc = cm.exception
-        self.assertEqual(exc.error_info_seq, [
-            ('source', 'some.otherrrrrrrrrrrrrrrrrrrrrrrx', ANY),
-        ])
-        self.assertIsInstance(exc.error_info_seq[0][2], Exception)
 
-    def test_several_invalid_values(self):
-        given_dict = self._given_dict(**{
-            # not in enum set
-            'confidence': [u'high', u'medium', u'INVALID'],
-            # invalid IPv4 (333 > 255)
-            'ip': ['333.101.102.103'],
-            # invalid CIDR IPv4 network spec (33 > 32, 333 > 255)
-            'ip.net': [u'100.101.102.103/33', '333.2.3.4/1'],
-            # invalid country code ('!' not allowed)
-            'cc': ['!!', u'US'],
-            # IP starts with an anonymized octet
-            'dip': [u'x.20.30.40'],
-            # too big number
-            'asn': ['4294967297'],
-            # too small number
-            'dport': [u'-1234'],
-            # invalid time
-            'time.min': ['2014-04-01 61:61:61+02:00'],
-            # multiple values of single-value-only param
-            'time.max': ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'],
-            # invalid date
-            'active.max': [u'2015-05-99T15:25'],
-            # too long URL
-            'url': [(2049 * 'x')],
-            # too long URL substring
-            'url.sub': [(2049 * 'x')],
-            # too long label in a domain name
-            'fqdn': [u'www.test.org,www.ołówekkkkkkkkkkkkkkkkkkkkkkkkkkk'
-                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk'
-                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.EXAMPLĘ.com'],
-        })
-        with self.assertRaises(ParamValueCleaningError) as cm:
-            self.ds.clean_param_dict(given_dict)
-        exc = cm.exception
-        self.assertEqual(sorted(exc.error_info_seq), sorted([
-            ('confidence', u'INVALID', ANY),
-            ('ip', '333.101.102.103', ANY),
-            ('ip.net', u'100.101.102.103/33', ANY),
-            ('ip.net', '333.2.3.4/1', ANY),
-            ('cc', '!!', ANY),
-            ('dip', ANY, ANY),
-            ('asn', ANY, ANY),
-            ('dport', ANY, ANY),
-            ('time.min', '2014-04-01 61:61:61+02:00', ANY),
-            ('time.max', ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'], ANY),
-            ('active.max', u'2015-05-99T15:25', ANY),
-            ('url', ANY, ANY),
-            ('url.sub', ANY, ANY),
-            ('fqdn', ANY, ANY),
-        ]))
-        self.assertTrue(all(
-            (
-                isinstance(info[1], basestring) or (
-                    isinstance(info[1], list) and
-                    info[1] and
-                    all(isinstance(it, basestring) for it in info[1]))
-            ) and isinstance(info[2], Exception)
-            for info in exc.error_info_seq))
-
-
-class TestDataSpec_clean_param_keys(ParamCleanMixin, unittest.TestCase):
+class MixInProvidingTestMethodsFor__clean_param_keys(MixinBase):
 
     def test_valid(self):
         given_dict = self._given_dict()
@@ -695,7 +672,7 @@ class TestDataSpec_clean_param_keys(ParamCleanMixin, unittest.TestCase):
         self._test_missing_keys(self.ds.clean_param_keys)
 
 
-class TestDataSpec_param_field_specs(ParamCleanMixin, unittest.TestCase):
+class MixInProvidingTestMethodsFor__param_field_specs(MixinBase):
 
     def test_all(self):
         field_specs = self.ds.param_field_specs()
@@ -775,9 +752,132 @@ class TestDataSpec_param_field_specs(ParamCleanMixin, unittest.TestCase):
             expected_keys=set())
 
 
-class TestDataSpecSubclass_clean_param_dict(SubclassParamCleanMixin,
-                                            TestDataSpec_clean_param_dict):
-    """Like TestDataSpec_clean_param_dict but for a DataSpec subclass."""
+
+#
+# Concrete test cases
+#
+
+#
+# Param-fields-related:
+
+class TestDataSpec_clean_param_dict(
+        NoSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__clean_param_dict,
+        unittest.TestCase):
+    pass
+
+
+class TestDataSpec_clean_param_keys(
+        NoSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__clean_param_keys,
+        unittest.TestCase):
+    pass
+
+
+class TestDataSpec_param_field_specs(
+        NoSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__param_field_specs,
+        unittest.TestCase):
+    pass
+
+
+class TestAllSearchableDataSpec_clean_param_dict(
+        AllSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__clean_param_dict,
+        unittest.TestCase):
+
+    def test_invalid_value__source_too_long(self):
+        given_dict = self._given_dict(
+            source=['some.source', 'some.otherrrrrrrrrrrrrrrrrrrrrrr' + 'x'])
+        with self.assertRaises(ParamValueCleaningError) as cm:
+            self.ds.clean_param_dict(given_dict)
+        exc = cm.exception
+        self.assertEqual(exc.error_info_seq, [
+            ('source', 'some.otherrrrrrrrrrrrrrrrrrrrrrrx', ANY),
+        ])
+        self.assertIsInstance(exc.error_info_seq[0][2], Exception)
+
+    def test_several_invalid_values(self):
+        given_dict = self._given_dict(**{
+            # not in enum set
+            'confidence': [u'high', u'medium', u'INVALID'],
+            # invalid IPv4 (333 > 255)
+            'ip': ['333.101.102.103'],
+            # invalid CIDR IPv4 network spec (33 > 32, 333 > 255)
+            'ip.net': [u'100.101.102.103/33', '333.2.3.4/1'],
+            # invalid country code ('!' not allowed)
+            'cc': ['!!', u'US'],
+            # IP starts with an anonymized octet
+            'dip': [u'x.20.30.40'],
+            # too big number
+            'asn': ['4294967297'],
+            # too small number
+            'dport': [u'-1234'],
+            # invalid time
+            'time.min': ['2014-04-01 61:61:61+02:00'],
+            # multiple values of single-value-only param
+            'time.max': ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'],
+            # invalid date
+            'active.max': [u'2015-05-99T15:25'],
+            # too long URL
+            'url': [(2049 * 'x')],
+            # too long URL substring
+            'url.sub': [(2049 * 'x')],
+            # too long label in a domain name
+            'fqdn': [u'www.test.org,www.ołówekkkkkkkkkkkkkkkkkkkkkkkkkkk'
+                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk'
+                     u'kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.EXAMPLĘ.com'],
+        })
+        with self.assertRaises(ParamValueCleaningError) as cm:
+            self.ds.clean_param_dict(given_dict)
+        exc = cm.exception
+        self.assertEqual(sorted(exc.error_info_seq), sorted([
+            ('confidence', u'INVALID', ANY),
+            ('ip', '333.101.102.103', ANY),
+            ('ip.net', u'100.101.102.103/33', ANY),
+            ('ip.net', '333.2.3.4/1', ANY),
+            ('cc', '!!', ANY),
+            ('dip', ANY, ANY),
+            ('asn', ANY, ANY),
+            ('dport', ANY, ANY),
+            ('time.min', '2014-04-01 61:61:61+02:00', ANY),
+            ('time.max', ['2015-04-01 01:07:42+02:00', '2015-04-02 11:07:42+02:00'], ANY),
+            ('active.max', u'2015-05-99T15:25', ANY),
+            ('url', ANY, ANY),
+            ('url.sub', ANY, ANY),
+            ('fqdn', ANY, ANY),
+        ]))
+        self.assertTrue(all(
+            (
+                isinstance(info[1], basestring) or (
+                    isinstance(info[1], list) and
+                    info[1] and
+                    all(isinstance(it, basestring) for it in info[1]))
+            ) and isinstance(info[2], Exception)
+            for info in exc.error_info_seq))
+
+
+class TestAllSearchableDataSpec_clean_param_keys(
+        AllSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__clean_param_keys,
+        unittest.TestCase):
+    pass
+
+
+class TestAllSearchableDataSpec_param_field_specs(
+        AllSearchableParamCleanMixin,
+        MixInProvidingTestMethodsFor__param_field_specs,
+        unittest.TestCase):
+    pass
+
+
+class TestAllSearchableDataSpecSubclass_clean_param_dict(
+        SubclassParamCleanMixin,
+        TestAllSearchableDataSpec_clean_param_dict):
+    """
+    Like TestAllSearchableDataSpec_clean_param_dict
+    but for an AllSearchableDataSpec subclass.
+    """
 
     def test_several_invalid_values(self):
         given_dict = self._given_dict(**{
@@ -810,14 +910,22 @@ class TestDataSpecSubclass_clean_param_dict(SubclassParamCleanMixin,
             for info in exc.error_info_seq))
 
 
-class TestDataSpecSubclass_clean_param_keys(SubclassParamCleanMixin,
-                                            TestDataSpec_clean_param_keys):
-    """Like TestDataSpec_clean_param_keys but for a DataSpec subclass."""
+class TestAllSearchableDataSpecSubclass_clean_param_keys(
+        SubclassParamCleanMixin,
+        TestAllSearchableDataSpec_clean_param_keys):
+    """
+    Like TestAllSearchableDataSpec_clean_param_keys
+    but for an AllSearchableDataSpec subclass.
+    """
 
 
-class TestDataSpecSubclass_param_field_specs(SubclassParamCleanMixin,
-                                             TestDataSpec_param_field_specs):
-    """Like TestDataSpec_param_field_specs but for a DataSpec subclass."""
+class TestAllSearchableDataSpecSubclass_param_field_specs(
+        SubclassParamCleanMixin,
+        TestAllSearchableDataSpec_param_field_specs):
+    """
+    Like TestAllSearchableDataSpec_param_field_specs
+    but for an AllSearchableDataSpec subclass.
+    """
 
 
 #
@@ -983,6 +1091,8 @@ class TestDataSpecSubclass_result_field_specs(SubclassResultCleanMixin,
 class TestDataSpecSubclass__field_custom_info(SubclassMixinBase,
                                               unittest.TestCase):
 
+    base_data_spec_class = DataSpec
+
     def _selftest_assertions(self):
         pass
 
@@ -992,7 +1102,7 @@ class TestDataSpecSubclass__field_custom_info(SubclassMixinBase,
         ))
 
     def test_ext(self):
-        class AnotherDataSpec(self.data_spec_class):
+        class AnotherDataSpec(self.get_data_spec_class()):
             url = Ext(                       # extended
                 custom_info=Ext(             #  extended
                     tralala=Ext(             #   extended

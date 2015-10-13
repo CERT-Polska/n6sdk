@@ -22,9 +22,14 @@ Basic References
 * **Documentation:** http://n6sdk.readthedocs.org/
 * **Usage examples:**
 
-  * the tutorial being a part of the aforementioned documentation;
-  * the contents of the ``examples/BasicExample`` subdirectory of the
+  * the `tutorial`_ being a part of the aforementioned documentation;
+  * the contents of the `examples/BasicExample`_ subdirectory of the
     *n6sdk* source code directory.
+
+.. _tutorial: http://n6sdk.readthedocs.org/en/latest/tutorial.html
+.. _examples/BasicExample:
+   https://github.com/CERT-Polska/n6sdk/tree/master/examples/BasicExample
+
 
 
 Copyright, License and Authors
@@ -33,7 +38,7 @@ Copyright, License and Authors
 Basic Legal Information
 -----------------------
 
-Copyright (c) 2013-2014 `Naukowa i Akademicka Sieć Komputerowa
+Copyright (c) 2013-2015 `Naukowa i Akademicka Sieć Komputerowa
 (Research and Academic Computer Network)`_.  All rights reserved.
 See also: the *Supplementary Attributions* section below.
 
@@ -61,8 +66,10 @@ Main Authors
 The developers of *n6sdk* are:
 
 * Jan Kaliszewski,
+* Mateusz Kukawski,
 * Łukasz Michalak,
-* Mariusz Szot
+* Marcin Ptak,
+* Mariusz Szot,
 
 *NASK, Software Development Department*.
 
@@ -106,4 +113,3 @@ Programme (FP7/2007--2013) under grant agreement No. 608533 (NECOMA).
 
 For more information on the NECOMA project see:
 http://www.necoma-project.eu/
-

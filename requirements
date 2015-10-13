@@ -1,2 +1,4 @@
 ipaddr
-pyramid
+pyramid<=1.5.7
+python-cjson
+requests

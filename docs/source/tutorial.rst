@@ -16,77 +16,54 @@ Setting up the development environment
 
 .. _working_env_prerequisites:
 
-Prerequisites
--------------
+Satisfying prerequisites and obtaining the source code
+------------------------------------------------------
 
 You need to have:
 
 * A Linux system + the *bash* shell used to interact with it + basic
-  Unix-like OS administrator tools such as *sed* (other platforms and
-  tools could also be used, but this tutorial assumes using the
-  aforementioned ones) + your favorite text editor;
-* Python 2.7 installed;
+  Unix-like OS tools such as *mkdir*, *cat* etc. (other platforms and
+  tools could also be used -- but this tutorial assumes using the
+  aforementioned ones) + your favorite text editor installed;
+* the *Python 2.7* language interpreter installed (on Debian GNU/Linux
+  it can be installed with the command: ``sudo apt-get install
+  python2.7`` -- although, typically, it is already installed);
+* The *git* version control system installed (on Debian GNU/Linux it
+  can be installed with the command: ``sudo apt-get install git``);
 * the *virtualenv* tool installed (see:
   http://virtualenv.readthedocs.org/en/latest/virtualenv.html; on
   Debian GNU/Linux it can be installed with the command: ``sudo apt-get
   install python-virtualenv``);
-* network access;
-* unpacked source distribution of the *n6sdk* library.
+* Internet access.
 
-
-Providing the necessary files
------------------------------
-
-We will start with creating a directory for our example project:
+First thing we need to do after satisfying the requirements listed
+above is to obtain the source code of the *n6sdk* library.  We will
+start with creating the outer directory for all our activities:
 
 .. code-block:: bash
 
-   $ mkdir <the main directory of the project>
+   $ mkdir <the outer directory>
 
-(Of course, ``<the main directory of the project>`` needs to be
-replaced with the actual name (absolute path) of the directory you
-want to create.)
+(Of course, ``<the outer directory>`` needs to be replaced with the
+actual name (absolute path) of the directory you want to create.)
 
-Now, we need to populate the directory with necessary files.  We can
-use some of the example files accompanying the *n6sdk* library:
+Then, we need to clone the source of the *n6sdk* library:
 
 .. code-block:: bash
 
-   $ cd <the main N6SDK source directory>/examples/BasicExample
-   $ cp -a setup.py development.ini production.ini MANIFEST.in \
-           <the main directory of the project>/
+   $ cd <the outer directory>
+   $ git clone https://github.com/CERT-Polska/n6sdk.git
 
-(Of course, ``<the main n6sdk source directory>`` needs to be replaced
-with the actual name (absolute path) of the directory containing the
-source code of *n6sdk*.)
-
-The files should be customized.  At the absolute minimum, we need to
-replace the ``basic_example`` text with the actual name of our
-project's package.  In this tutorial it will be ``using_n6sdk`` (you
-can, of course, pick another name):
-
-.. code-block:: bash
-
-   $ cd <the main directory of the project>
-   $ sed -i -r -e 's/basic_example/using_n6sdk/g' \
-         setup.py development.ini production.ini MANIFEST.in
-
-(You may also want to customize other details in these files,
-especially the *version* field in the ``setup.py`` file.)
-
-We also need to create the actual Python package (as it was said, in
-this tutorial its name will be ``using_n6sdk``):
-
-.. code-block:: bash
-
-   $ mkdir using_n6sdk
-   $ touch using_n6sdk/__init__.py
+Now, in the ``<the outer directory>/n6sdk/`` subdirectory we have the
+*n6sdk* source code.
 
 
-Installing the necessary components
------------------------------------
+.. _dev_install:
 
-Now, we will create and activate our Python *virtual environment*:
+Installing the necessary stuff
+------------------------------
+
+Next, we will create and activate our Python *virtual environment*:
 
 .. code-block:: bash
 
@@ -97,16 +74,33 @@ Then, we can install the *n6sdk* library:
 
 .. code-block:: bash
 
-   $ cd <the main N6SDK source directory>
+   $ cd n6sdk
    $ python setup.py install
 
-...as well as our new Python package -- for development (please note
-that here, for this package, the setup command will be ``develop``,
-not ``install``):
+Then, we need to create our project:
 
 .. code-block:: bash
 
-   $ cd <the main directory of the project>
+   $ cd ..
+   $ pcreate -s n6sdk Using_N6SDK
+
+-- where ``Using_N6SDK`` is the name of our new *n6sdk*-based project.
+Obviously, when creating your real project you will want to pick
+another name -- providing the restriction that the name consist only
+of letters (uppercase and/or lowercase) and underscores.  Anyway, for
+the rest of this tutorial we will use ``Using_N6SDK`` as the project
+name (and, consequently, ``using_n6sdk`` as the "technical" package
+name).
+
+Now, we have the skeleton of our new project.  You may want to
+customize some details in the newly created files, especially the
+*version* and *description* fields in ``Using_N6SDK/setup.py``.
+
+Then, we need to install our new project *for development*:
+
+.. code-block:: bash
+
+   $ cd Using_N6SDK
    $ python setup.py develop
 
 We can check whether everything up to now went well by running the
@@ -114,9 +108,10 @@ Python interpreter...
 
 .. code-block:: bash
 
+   $ cd ..
    $ python
 
-...and trying importing some of the installed components:
+...and trying to import some of the installed components:
 
    >>> import n6sdk
    >>> import n6sdk.data_spec.fields
@@ -137,7 +132,7 @@ following data processing is performed on the server side:
 1. **Receiving the HTTP request**
 
    *n6sdk* uses the *Pyramid* library (see:
-   http://docs.pylonsproject.org/en/latest/docs/pyramid.html) to
+   http://docs.pylonsproject.org/projects/pyramid/en/1.5-branch/) to
    perform processing related to HTTP communication, request data (for
    example, extracting query parameters from the URL's query string)
    and routing (deciding what function shall be invoked with what
@@ -268,10 +263,10 @@ specifications (being instances of
 :class:`n6sdk.data_spec.fields.Field` or of subclasses of it) are
 declared similarly to ORM "fields" or "columns".
 
-For example, consider the following simplified and shortened version
-of the :class:`n6sdk.data_spec.DataSpec` source code::
+For example, consider the following simple data specification
+class::
 
-    class DataSpec(BaseDataSpec):
+    class MyDataSpecFromScratch(n6sdk.data_spec.BaseDataSpec):
 
         id = UnicodeLimitedField(
             in_params='optional',
@@ -332,10 +327,16 @@ of the :class:`n6sdk.data_spec.DataSpec` source code::
             max_value=(2 ** 15 - 1),
         )
 
-        ### ...other field specifications...
+
+.. note::
+
+   In a real project you should inherit from
+   :class:`~n6sdk.data_spec.DataSpec` rather than from
+   :class:`~n6sdk.data_spec.BaseDataSpec`. See the following sections,
+   especially :ref:`your_first_data_spec`.
 
 
-What do we see above:
+What do we see in the above listing is that:
 
 1. ``id`` is a text field: its values are strings, not longer than 64
    characters (as its declaration is an instance of
@@ -397,32 +398,111 @@ What do we see above:
    **optional** as an item of a result dictionary.
 
 
-You may want to create your own custom data specification by
-subclassing :class:`n6sdk.data_spec.DataSpec` to create a custom data
-specification class -- in which you can:
+To create your data specification class you will, most probably, want
+to inherit from :class:`n6sdk.data_spec.DataSpec`.  In its subclass
+you can:
 
 * add new field specifications as well as modify (extend), replace or
-  remove (mask) field specifications defined by
+  remove (mask) field specifications defined in
   :class:`~n6sdk.data_spec.DataSpec`;
 * extend the :class:`~n6sdk.data_spec.DataSpec`'s cleaning methods.
 
-(See the following sections.)
+(See comments in ``Using_N6SDK/using_n6sdk/data_spec.py`` as well as
+descriptions in the following sections of this tutorial.)
 
 You may also want to subclass :class:`n6sdk.data_spec.fields.Field`
 (or any of its subclasses, such as :class:`~.UnicodeLimitedField`,
 :class:`~.IPv4Field` or :class:`~.IntegerField`) to create new kinds
 of fields whose instances can be used as field specifications in your
-custom data specification class (see below:
-:ref:`custom_field_classes`).
+data specification class (see below...).
 
+
+.. _your_first_data_spec:
+
+Your first data specification class
+-----------------------------------
+
+**Let us open the** ``<the outer
+directory>/Using_N6SDK/using_n6sdk/data_spec.py`` **file with our
+favorite text editor and uncomment the following lines in it** (within
+the body of the ``UsingN6sdkDataSpec`` class)::
+
+    id = Ext(in_params='optional')
+
+    source = Ext(in_params='optional')
+
+    restriction = Ext(in_params='optional')
+
+    confidence = Ext(in_params='optional')
+
+    category = Ext(in_params='optional')
+
+    time = Ext(
+        extra_params=Ext(
+            min=Ext(in_params='optional'),    # search for >= than...
+            max=Ext(in_params='optional'),    # search for <= than...
+            until=Ext(in_params='optional'),  # search for <  than...
+        ),
+    )
+
+    ip = Ext(
+        in_params='optional',
+    )
+
+    url = Ext(
+        in_params='optional',
+    )
+
+Our ``UsingN6sdkDataSpec`` data specification class is a subclass of
+:class:`n6sdk.data_spec.DataSpec` which, by default, has all query
+parameters **disabled** -- so here we **enabled** *some* of them by
+uncommenting these lines.  (We can remove the rest of commented
+lines.)
+
+.. note::
+
+   You should always ensure that you *do not* enable in your *data
+   specification class* any query parameters that are *not* supported
+   by your *data backend API* (see: :ref:`data_backend_api`).
+
+Apart from changing (extending) inherited field specifications, we can
+also add some new fields.  For example, **let us add, near the
+beginning of our data specification class definition, a new field
+specification:** ``mac_address``.
+
+::
+
+    from n6sdk.data_spec import DataSpec, Ext
+    from n6sdk.data_spec.fields import UnicodeRegexField  # remember to add this line
+
+
+    class UsingN6sdkDataSpec(DataSpec):
+
+        """
+        The data specification class for the `Using_N6SDK` project.
+        """
+
+        mac_address = UnicodeRegexField(
+            in_params='optional',  # *can* be in query params
+            in_result='optional',  # *can* be in result data
+
+            regex=r'^(?:[0-9A-F]{2}(?:[:-]|$)){6}$',
+            error_msg_template=u'"{}" is not a valid MAC address',
+        )
+
+(Of course, we *do not remove* the lines uncommented earlier.)
+
+
+More knowledge about data specification...
+------------------------------------------
 
 .. _data_spec_cleaning_methods:
 
-Data specification cleaning methods
------------------------------------
+The data specification's cleaning methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The most important methods of any *data specification* (an instance of
-:class:`n6sdk.data_spec.DataSpec` or of its subclass) are:
+The most important methods of any *data specification* (typically, an
+instance of :class:`n6sdk.data_spec.DataSpec` or of its subclass) are:
 
 * :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` -- used to
   clean client query parameters;
@@ -430,7 +510,7 @@ The most important methods of any *data specification* (an instance of
 * :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` -- used to
   clean results yielded by the data backend API.
 
-Typically, these methods are called automatically by the *n6sdk*
+Normally, these methods are called automatically by the *n6sdk*
 machinery.
 
 Each of these methods takes *exactly one positional argument* which is
@@ -494,8 +574,8 @@ dictionaries:
 
 .. _field_cleaning_methods:
 
-Field cleaning methods
-----------------------
+The field's cleaning methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The most important methods of any *field* (an instance of
 :class:`n6sdk.data_spec.fields.Field` or of its subclass) are:
@@ -545,8 +625,8 @@ following way:
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` (described
   above in the :ref:`data_spec_cleaning_methods` section) calls the
   :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method of
-  the appropriate field -- separately **for each raw value from the
-  dictionary passed as the argument**.
+  the appropriate field -- **for each raw value from the dictionary
+  passed as the argument**.
 
   If the field's method raises (or propagates) an exception being an
   instance/subclass of :exc:`~exceptions.Exception` (i.e., practically
@@ -593,917 +673,1065 @@ following way:
 
 .. _data_spec_overview:
 
-:class:`n6sdk.data_spec.DataSpec` overview
-------------------------------------------
+Overview of the basic data specification classes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The :class:`n6sdk.data_spec.DataSpec` class is a ready-to-use *data
-specification class* that performs cleaning of all standard *n6-like*
-REST API query parameters and result items.
+The :class:`n6sdk.data_spec.DataSpec` and
+:class:`n6sdk.data_spec.AllSearchableDataSpec` classes are two
+variants of a base class for your own data specification class.
+
+Each of them defines all standard *n6-like* REST API fields -- but:
+
+* :class:`~n6sdk.data_spec.DataSpec` -- has *all query parameters*
+  **disabled**.  This makes the class suitable for most *n6sdk* uses:
+  in your subclass of :class:`~n6sdk.data_spec.DataSpec` you will
+  *need to enable* (typically, with a ``<field name> =
+  Ext(in_params='optional')`` declaration) only those query parameters
+  that your data backend supports.
+
+* :class:`~n6sdk.data_spec.AllSearchableDataSpec` -- has *all query
+  parameters* **enabled**.  This makes the class suitable for cases
+  when your data backend supports all or most of standard *n6* query
+  parameters.  In your subclass of
+  :class:`~n6sdk.data_spec.AllSearchableDataSpec` you will need to
+  *disable* (typically, with a ``<field name> = Ext(in_params=None)``
+  declaration) those query parameters that your data backend *does
+  not* support.
 
 The following list describes briefly all field specifications defined
-by the class:
+in these two classes.
 
-* ``id``:
+* basic event data fields:
 
-  * *in params:* **optional**
-  * *in result:* **required**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=64``
-  * *param/result cleaning example:*
+    * ``id``:
 
-    * *raw value:* ``"abcDEF... \xc5\x81"``
-    * *cleaned value:* ``u"abcDEF... \u0141"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **required**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=64``
+      * *param/result cleaning example:*
 
-  Unique incident identifier being an arbitrary text. Maximum length:
-  64 characters (after cleaning).
+	* *raw value:* ``"abcDEF... \xc5\x81"``
+	* *cleaned value:* ``u"abcDEF... \u0141"``
 
-* ``source``:
+      Unique incident identifier being an arbitrary text.  Maximum
+      length: 64 characters (after cleaning).
 
-  * *in params:* **optional**
-  * *in result:* **required**
-  * *field class:* :class:`.SourceField`
-  * *param/result cleaning example:*
+    * ``source``:
 
-    * *raw value:* ``"some-org.some-type"``
-    * *cleaned value:* ``u"some-org.some-type"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **required**
+      * *field class:* :class:`.SourceField`
+      * *param/result cleaning example:*
 
-  Incident data source identifier. Consists of two parts separated
-  with a dot (``.``). Allowed characters (apart from the dot) are:
-  ASCII lower-case letters, digits and hyphen (``-``). Maximum length:
-  32 characters (after cleaning).
+	* *raw value:* ``"some-org.some-type"``
+	* *cleaned value:* ``u"some-org.some-type"``
 
-* ``restriction``:
+      Incident data source identifier. Consists of two parts separated
+      with a dot (``.``). Allowed characters (apart from the dot) are:
+      ASCII lower-case letters, digits and hyphen (``-``).  Maximum
+      length: 32 characters (after cleaning).
 
-  * *in params:* **optional**
-  * *in result:* **required**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.RESTRICTION_ENUMS``
-  * *param/result cleaning example:*
+    * ``restriction``:
 
-    * *raw value:* ``"public"``
-    * *cleaned value:* ``u"public"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **required**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.RESTRICTION_ENUMS``
+      * *param/result cleaning example:*
 
-  Data distribution restriction qualifier.  One of: ``"public"``,
-  ``"need-to-know"`` or ``"internal"``.
+	* *raw value:* ``"public"``
+	* *cleaned value:* ``u"public"``
 
-* ``confidence``:
+      Data distribution restriction qualifier.  One of: ``"public"``,
+      ``"need-to-know"`` or ``"internal"``.
 
-  * *in params:* **optional**
-  * *in result:* **required**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CONFIDENCE_ENUMS``
-  * *param/result cleaning example:*
+    * ``confidence``:
 
-    * *raw value:* ``"medium"``
-    * *cleaned value:* ``u"medium"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **required**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CONFIDENCE_ENUMS``
+      * *param/result cleaning example:*
 
-  Data confidence qualifier.  One of: ``"high"``, ``"medium"`` or
-  ``"low"``.
+	* *raw value:* ``"medium"``
+	* *cleaned value:* ``u"medium"``
 
-* ``category``:
+      Data confidence qualifier.  One of: ``"high"``, ``"medium"`` or
+      ``"low"``.
 
-  * *in params:* **optional**
-  * *in result:* **required**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CATEGORY_ENUMS``
-  * *param/result cleaning example:*
+    * ``category``:
 
-    * *raw value:* ``"bots"``
-    * *cleaned value:* ``u"bots"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **required**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.CATEGORY_ENUMS``
+      * *param/result cleaning example:*
 
-  Incident category label (some examples: ``"bots"``, ``"phish"``,
-  ``"scanning"``...).
+	* *raw value:* ``"bots"``
+	* *cleaned value:* ``u"bots"``
 
-* ``time``
+      Incident category label (some examples: ``"bots"``, ``"phish"``,
+      ``"scanning"``...).
 
-  * *in params:* N/A
-  * *in result:* **required**
-  * *field class:* :class:`.DateTimeField`
-  * *result cleaning examples:*
+    * ``time``
 
-    * *example synonymous raw values:*
+      * *in params:* N/A
+      * *in result:* **required**
+      * *field class:* :class:`.DateTimeField`
+      * *result cleaning examples:*
 
-      *  ``"2014-11-05T23:13:00.000000"`` or
-      *  ``"2014-11-06 01:13+02:00"`` or
-      *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
-      *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
+	* *example synonymous raw values:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	  *  ``"2014-11-05T23:13:00.000000"`` or
+	  *  ``"2014-11-06 01:13+02:00"`` or
+	  *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
+	  *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
 
-  Incident *occurrence* time (**not**
-  *when-entered-into-the-database*).  Value cleaning includes
-  conversion to UTC time.
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``time.min``:
+      Incident *occurrence* time (**not**
+      *when-entered-into-the-database*).  Value cleaning includes
+      conversion to UTC time.
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+    * ``time.min``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-      * ``"2014-11-06T01:13+02:00"`` or
-      * ``u"2014-11-05 23:13:00.000000"``
+	* *example synonymous raw values:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	  * ``"2014-11-06T01:13+02:00"`` or
+	  * ``u"2014-11-05 23:13:00.000000"``
 
-  The *earliest* time the queried incidents *occurred* at.  Value
-  cleaning includes conversion to UTC time.
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``time.max``:
+      The *earliest* time the queried incidents *occurred* at.  Value
+      cleaning includes conversion to UTC time.
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+    * ``time.max``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-      * ``u"2014-11-06T01:13+02:00"`` or
-      * ``"2014-11-05 23:13:00.000000"``
+	* *example synonymous raw values:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	  * ``u"2014-11-06T01:13+02:00"`` or
+	  * ``"2014-11-05 23:13:00.000000"``
 
-  The *latest* time the queried incidents *occurred* at.  Value
-  cleaning includes conversion to UTC time.
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``time.until``:
+      The *latest* time the queried incidents *occurred* at.  Value
+      cleaning includes conversion to UTC time.
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+    * ``time.until``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-      * ``u"2014-11-06T01:13+02:00"`` or
-      * ``"2014-11-05 23:13:00.000000"``
+	* *example synonymous raw values:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	  * ``u"2014-11-06T01:13+02:00"`` or
+	  * ``"2014-11-05 23:13:00.000000"``
 
-  The time the queried incidents *occurred before* (i.e., exclusive; a
-  handy replacement for ``time.max`` in some cases).  Value cleaning
-  includes conversion to UTC time.
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``modified``
+      The time the queried incidents *occurred before* (i.e., exclusive; a
+      handy replacement for ``time.max`` in some cases).  Value cleaning
+      includes conversion to UTC time.
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.DateTimeField`
-  * *result cleaning examples:*
+* ``address``-related fields:
 
-    * *example synonymous raw values:*
+    .. _field_spec_address:
 
-      *  ``"2014-11-05T23:13:00.000000"`` or
-      *  ``"2014-11-06 01:13+02:00"`` or
-      *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
-      *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
+    * ``address``
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.ExtendedAddressField`
+      * *result cleaning examples:*
 
-  The time when the incident data was *made available through the API
-  or modified*.  Value cleaning includes conversion to UTC time.
+	* *example synonymous raw values:*
 
-* ``modified.min``:
+	  * ``[{"ipv6": "::1"}, {"ip": "123.10.234.169", "asn": 999998}]`` or
+	  * ``[{u"ipv6": "::0001"}, {"ip": "123.10.234.169", u"asn": "999998"}]`` or
+	  * ``[{"ipv6": "0000:0000::0001"}, {u"ip": "123.10.234.169", u"asn": "15.16958"}]``
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+	* *cleaned value:* ``[{u"ipv6": u"::1"}, {u"ip": "123.10.234.169", u"asn": 999998}]``
 
-    * *example synonymous raw values:*
+      Set of network addresses related to the returned incident (e.g., for
+      malicious web sites: taken from DNS *A* or *AAAA* records; for
+      sinkhole/scanning: communication source addresses) -- in the form of
+      a list of dictionaries, each containing:
 
-      * ``"2014-11-06T01:13+02:00"`` or
-      * ``u"2014-11-05 23:13:00.000000"``
+      * obligatorily:
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	* either ``"ip"`` (IPv4 address in quad-dotted decimal notation,
+	  cleaned using a subfield being an instance of
+	  :class:`.IPv4Field`)
 
-  The *earliest* time the queried incidents were *made available
-  through the API or modified* at.  Value cleaning includes conversion
-  to UTC time.
+	* or ``"ipv6"`` (IPv6 address in the standard text representation,
+	  cleaned using a subfield being an instance of
+	  :class:`.IPv6Field`)
 
-* ``modified.max``:
+	-- but *not* both ``"ip"`` and ``"ipv6"``;
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+      * plus optionally -- all or some of:
 
-    * *example synonymous raw values:*
+	* ``"asn"`` (autonomous system number in the form of a number or
+	  two numbers separated with a dot, cleaned using a subfield being
+	  an instance of :class:`.ASNField`),
 
-      * ``u"2014-11-06T01:13+02:00"`` or
-      * ``"2014-11-05 23:13:00.000000"``
+	* ``"cc"`` (two-letter country code, cleaned using a subfield
+	  being an instance of :class:`.CCField`),
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	* ``"dir"`` (the indicator of the address role in terms of the
+	  direction of the network flow in layers 3 or 4; one of:
+	  ``"src"``, ``"dst"``; cleaned using a subfield being an instance
+	  of :class:`.DirField`),
 
-  The *latest* time the queried incidents were *made available through
-  the API or modified* at.  Value cleaning includes conversion to UTC
-  time.
+	* ``"rdns"`` (the domain name from the PTR record of the
+	  ``.in-addr-arpa`` domain associated with the IP address, without
+	  the trailing dot; cleaned using a subfield being an instance of
+	  :class:`.DomainNameField`).
 
-* ``modified.until``:
+      .. note::
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+	 The cleaned IPv6 addresses is in the "condensed" form -- in
+	 contrast to the "exploded" form used for *param cleaning* of
+	 :ref:`ipv6 <field_spec_ipv6>` and :ref:`ipv6.net
+	 <field_spec_ipv6_net>`.  .
 
-    * *example synonymous raw values:*
+    * ``ip``:
 
-      * ``u"2014-11-06T01:13+02:00"`` or
-      * ``"2014-11-05 23:13:00.000000"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.IPv4Field`
+      * *param cleaning example:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	* *raw value:* ``"123.10.234.168"``
+	* *cleaned value:* ``u"123.10.234.168"``
 
-  The time the queried incidents were *made available through the API
-  or modified* before (i.e., exclusive; a handy replacement for
-  ``modified.max`` in some cases).  Value cleaning includes conversion
-  to UTC time.
+      IPv4 address (in quad-dotted decimal notation) related to the
+      queried incidents.
 
-* ``origin``:
+    * ``ip.net``:
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.ORIGIN_ENUMS``
-  * *param/result cleaning example:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.IPv4NetField`
+      * *param cleaning example:*
 
-    * *raw value:* ``"honeypot"``
-    * *cleaned value:* ``u"honeypot"``
+	* *raw value:* ``"123.10.234.0/24"``
+	* *cleaned value:* ``(u"123.10.234.0", 24)``
 
-  Incident origin label (some examples: ``"p2p-crawler"``,
-  ``"sinkhole"``, ``"honeypot"``...).
+      IPv4 network (in CIDR notation) containing IP addresses related to
+      the queried incidents.
 
-* ``name``:
+    .. _field_spec_ipv6:
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=255``
-  * *param/result cleaning example:*
+    * ``ipv6``:
 
-    * *raw value:* ``"LoremIpsuM"``
-    * *cleaned value:* ``u"LoremIpsuM"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.IPv6Field`
+      * *param cleaning examples:*
 
-  Threat's exact name, such as ``"virut"``, ``"Potential SSH Scan"``
-  or any other... Maximum length: 255 characters (after cleaning).
+	* *example synonymous raw values:*
 
-* ``target``:
+	  * ``u"abcd::1"`` or
+	  * ``"ABCD::1"`` or
+	  * ``u"ABCD:0000:0000:0000:0000:0000:0000:0001"``
+	  * ``"abcd:0000:0000:0000:0000:0000:0000:0001"`` or
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=100``
-  * *param/result cleaning example:*
+	* *cleaned value:* ``u"abcd:0000:0000:0000:0000:0000:0000:0001"``
 
-    * *raw value:* ``"LoremIpsuM"``
-    * *cleaned value:* ``u"LoremIpsuM"``
+      IPv6 address (in the standard text representation) related to the
+      queried incidents.
 
-  Name of phishing target (organization, brand etc.). Maximum length:
-  100 characters (after cleaning).
+      .. note::
 
-.. _field_spec_address:
+	 Cleaned values are in the "exploded" form -- in contrast to
+	 the "condensed" form used for *result cleaning* of
+	 :ref:`address <field_spec_address>`.
 
-* ``address``
+    .. _field_spec_ipv6_net:
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.ExtendedAddressField`
-  * *result cleaning examples:*
+    * ``ipv6.net``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.IPv6NetField`
+      * *param cleaning examples:*
 
-      * ``[{"ipv6": "::1"}, {"ip": "123.10.234.169", "asn": 999998}]`` or
-      * ``[{u"ipv6": "::0001"}, {"ip": "123.10.234.169", u"asn": "999998"}]`` or
-      * ``[{"ipv6": "0000:0000::0001"}, {u"ip": "123.10.234.169", u"asn": "15.16958"}]``
+	* *example synonymous raw values:*
 
-    * *cleaned value:* ``[{u"ipv6": u"::1"}, {u"ip": "123.10.234.169", u"asn": 999998}]``
+	  * ``"abcd::1/128"`` or
+	  * ``u"ABCD::1/128"`` or
+	  * ``"ABCD:0000:0000:0000:0000:0000:0000:0001/128"``
+	  * ``u"abcd:0000:0000:0000:0000:0000:0000:0001/128"`` or
 
-  Set of network addresses related to the returned incident (e.g., for
-  malicious web sites: taken from DNS *A* or *AAAA* records; for
-  sinkhole/scanning: communication source addresses) -- in the form of
-  a list of dictionaries, each containing:
+	* *cleaned value:* ``(u"abcd:0000:0000:0000:0000:0000:0000:0001", 128)``
 
-  * obligatorily:
-    
-    * either ``"ip"`` (IPv4 address in quad-dotted decimal notation,
-      cleaned using a subfield being an instance of
-      :class:`.IPv4Field`)
+      IPv6 network (in CIDR notation) containing IPv6 addresses related to
+      the queried incidents.
 
-    * or ``"ipv6"`` (IPv6 address in the standard text representation,
-      cleaned using a subfield being an instance of
-      :class:`.IPv6Field`)
-    
-    -- but *not* both ``"ip"`` and ``"ipv6"``;
-  
-  * plus optionally -- all or some of:
+      .. note::
 
-    * ``"asn"`` (autonomous system number in the form of a number or
-      two numbers separated with a dot, cleaned using a subfield being
-      an instance of :class:`.ASNField`),
+	 The address part of each cleaned value is in the "exploded"
+	 form -- in contrast to the "condensed" form used for *result
+	 cleaning* of :ref:`address <field_spec_address>`.
 
-    * ``"cc"`` (two-letter country code, cleaned using a subfield
-      being an instance of :class:`.CCField`),
-    
-    * ``"dir"`` (the indicator of the address role in terms of the
-      direction of the network flow in layers 3 or 4; one of:
-      ``"src"``, ``"dst"``; cleaned using a subfield being an instance
-      of :class:`.DirField`),
+    * ``asn``:
 
-    * ``"rdns"`` (the domain name from the PTR record of the
-      ``.in-addr-arpa`` domain associated with the IP address, without
-      the trailing dot; cleaned using a subfield being an instance of
-      :class:`.DomainNameField`).
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.ASNField`
+      * *param cleaning examples:*
 
-  .. note::
-  
-     The cleaned IPv6 addresses is in the "condensed" form of -- in
-     contrast to the "exploded" form used for :ref:`ipv6
-     <field_spec_ipv6>` and :ref:`ipv6.net <field_spec_ipv6_net>`
-     *param cleaning*.
+	* *example synonymous raw values:*
 
-* ``ip``:
+	  * ``u"999998"`` or
+	  * ``u"15.16958"``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.IPv4Field`
-  * *param cleaning example:*
+	* *cleaned value:* ``999998``
 
-    * *raw value:* ``"123.10.234.168"``
-    * *cleaned value:* ``u"123.10.234.168"``
+      Autonomous system number of IP addresses related to the queried
+      incidents; in the form of a number or two numbers separated with a
+      dot (see the examples above).
 
-  IPv4 address (in quad-dotted decimal notation) related to the
-  queried incidents.
+    * ``cc``:
 
-* ``ip.net``:
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.CCField`
+      * *param cleaning example:*
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.IPv4NetField`
-  * *param cleaning example:*
+	* *raw value:* ``"US"``
+	* *cleaned value:* ``u"US"``
 
-    * *raw value:* ``"123.10.234.0/24"``
-    * *cleaned value:* ``(u"123.10.234.0", 24)``
+      Two-letter country code related to IP addresses related to the
+      queried incidents.
 
-  IPv4 network (in CIDR notation) containing IP addresses related to
-  the queried incidents.
+* fields related to *black list* events:
 
-.. _field_spec_ipv6:
+    * ``expires``:
 
-* ``ipv6``:
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.DateTimeField`
+      * *result cleaning examples:*
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.IPv6Field`
-  * *param cleaning examples:*
+	* *example synonymous raw values:*
 
-    * *example synonymous raw values:*
+	  *  ``"2014-11-05T23:13:00.000000"`` or
+	  *  ``"2014-11-06 01:13+02:00"`` or
+	  *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
+	  *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
 
-      * ``u"abcd::1"`` or
-      * ``"ABCD::1"`` or
-      * ``u"ABCD:0000:0000:0000:0000:0000:0000:0001"``
-      * ``"abcd:0000:0000:0000:0000:0000:0000:0001"`` or
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-    * *cleaned value:* ``u"abcd:0000:0000:0000:0000:0000:0000:0001"``
+      Black list item *expiry* time.  Value cleaning includes
+      conversion to UTC time.
 
-  IPv6 address (in the standard text representation) related to the
-  queried incidents.
+    * ``active.min``:
 
-  .. note::
-  
-     Cleaned values are in the "exploded" form -- in contrast to the
-     "condensed" form used for :ref:`address <field_spec_address>`
-     *result cleaning*.
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-.. _field_spec_ipv6_net:
+	* *example synonymous raw values:*
 
-* ``ipv6.net``:
+	  * ``"2014-11-05T23:13:00.000000"`` or
+	  * ``"2014-11-06 01:13+02:00"``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.IPv6NetField`
-  * *param cleaning examples:*
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-    * *example synonymous raw values:*
+      The *earliest* expiry-or-occurrence time of the queried black list
+      items.  Value cleaning includes conversion to UTC time.
 
-      * ``"abcd::1/128"`` or
-      * ``u"ABCD::1/128"`` or
-      * ``"ABCD:0000:0000:0000:0000:0000:0000:0001/128"``
-      * ``u"abcd:0000:0000:0000:0000:0000:0000:0001/128"`` or
+    * ``active.max``:
 
-    * *cleaned value:* ``(u"abcd:0000:0000:0000:0000:0000:0000:0001", 128)``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-  IPv6 network (in CIDR notation) containing IPv6 addresses related to
-  the queried incidents.
+	* *example synonymous raw values:*
 
-  .. note::
-  
-     The address part of each cleaned value is in the "exploded" form
-     -- in contrast to the "condensed" form used for :ref:`address
-     <field_spec_address>` *result cleaning*.
+	  * ``u"2014-11-05T23:13:00.000000"`` or
+	  * ``u"2014-11-06 01:13+02:00"``
 
-* ``asn``:
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.ASNField`
-  * *param cleaning examples:*
+      The *latest* expiry-or-occurrence time of the queried black list
+      items.  Value cleaning includes conversion to UTC time.
 
-    * *example synonymous raw values:*
+    * ``active.until``:
 
-      * ``u"999998"`` or
-      * ``u"15.16958"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-    * *cleaned value:* ``999998``
+	* *example synonymous raw values:*
 
-  Autonomous system number of IP addresses related to the queried
-  incidents; in the form of a number or two numbers separated with a
-  dot (see the examples above).
+	  * ``u"2014-11-06T01:13+02:00"`` or
+	  * ``"2014-11-05 23:13:00.000000"``
 
-* ``cc``:
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.CCField`
-  * *param cleaning example:*
+      The time the queried incidents *expired or occurred before* (i.e.,
+      exclusive; a handy replacement for ``active.max`` in some cases).
+      Value cleaning includes conversion to UTC time.
 
-    * *raw value:* ``"US"``
-    * *cleaned value:* ``u"US"``
+    * ``replaces``:
 
-  Two-letter country code related to IP addresses related to the
-  queried incidents.
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=64``
+      * *param/result cleaning example:*
 
-.. _field_spec_url:
+	* *raw value:* ``"abcDEF"``
+	* *cleaned value:* ``u"abcDEF"``
 
-* ``url``:
+      ``id`` of the black list item replaced by the queried/returned
+      one.  Maximum length: 64 characters (after cleaning).
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.URLField`
-  * *param/result cleaning examples:*
+    * ``status``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.STATUS_ENUMS``
+      * *param/result cleaning example:*
 
-      * ``"ftp://example.com/non-utf8-\xdd"`` or
-      * ``u"ftp://example.com/non-utf8-\udcdd"`` or
-      * ``"ftp://example.com/non-utf8-\xed\xb3\x9d"``
+	* *raw value:* ``"active"``
+	* *cleaned value:* ``u"active"``
 
-    * *cleaned value:* ``u"ftp://example.com/non-utf8-\udcdd"``
+      *Black list* item status qualifier.  One of: ``"active"`` (item
+      currently in the list), ``"delisted"`` (item removed from the list),
+      ``"expired"`` (item expired, so treated as removed by the n6 system)
+      or ``"replaced"`` (e.g.: IP address changed for the same URL).
 
-  URL related to the queried/returned incidents. Maximum length: 2048
-  characters (after cleaning).
+* fields related to *aggregated (high frequency)* events
 
-  .. note::
+    * ``count``:
 
-     Cleaning involves decoding byte strings using the
-     ``surrogateescape`` error handler backported from Python 3.x
-     (see: :func:`n6sdk.encoding_helpers.provide_surrogateescape`).
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.IntegerField`
+      * *specific field constructor arguments:* ``min_value=0, max_value=32767``
+      * *result cleaning examples:*
 
-* ``url.sub``:
+	* *example synonymous raw values:* ``42`` or ``42.0`` or ``"42"``
+	* *cleaned value:* ``42``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.URLSubstringField`
-  * *param cleaning example:*
+      Number of events represented by the returned incident data
+      record.  It must be a positive integer number not greater
+      than 32767.
 
-    * *raw value:* ``"/example.c"``
-    * *cleaned value:* ``u"/example.c"``
+    * ``until``:
 
-  Substring of URLs related to the queried incidents. Maximum length:
-  2048 characters (after cleaning).
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.DateTimeField`
+      * *result cleaning examples:*
 
-  .. seealso::
+	* *example synonymous raw values:*
 
-     The above :ref:`url <field_spec_url>` description.
+	  *  ``"2014-11-05T23:13:00.000000"`` or
+	  *  ``"2014-11-06 01:13+02:00"`` or
+	  *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
+	  *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
 
-.. _field_spec_fqdn:
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``fqdn``:
+      The occurrence time of the *latest* [newest] aggregated event
+      represented by the returned incident data record (*note:*
+      ``time`` is the occurrence time of the *first* [oldest]
+      aggregated event).  Value cleaning includes conversion to UTC
+      time.
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.DomainNameField`
-  * *param/result cleaning examples:*
+* the rest of the standard *n6* fields:
 
-    * *example synonymous raw values:*
+    * ``action``:
 
-      * ``u"WWW.ŁÓDKA.ORG.EXAMPLE"`` or
-      * ``"WWW.\xc5\x81\xc3\x93DKA.ORG.EXAMPLE"`` or
-      * ``u"wwW.łódka.org.Example"`` or
-      * ``"www.\xc5\x82\xc3\xb3dka.org.Example"`` or
-      * ``u"www.xn--dka-fna80b.org.example"`` or
-      * ``"www.xn--dka-fna80b.example.org"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=32``
+      * *param/result cleaning example:*
 
-    * *cleaned value:* ``u"www.xn--dka-fna80b.example.org"``
+	* *raw value:* ``"Some Text"``
+	* *cleaned value:* ``u"Some Text"``
 
-  Fully qualified domain name related to the queried/returned
-  incidents (e.g., for malicious web sites: from the site's URL; for
-  sinkhole/scanning: the domain used for communication). Maximum
-  length: 255 characters (after cleaning).
+      Action taken by malware (e.g. ``"redirect"``, ``"screen
+      grab"``...).  Maximum length: 32 characters (after cleaning).
 
-  .. note::
+    * ``adip``:
 
-     During cleaning, the ``IDNA`` encoding is applied (see:
-     https://docs.python.org/2.7/library/codecs.html#module-encodings.idna
-     and http://en.wikipedia.org/wiki/Internationalized_domain_name;
-     see also the above examples), then all remaining upper-case
-     letters are converted to lower-case.
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.AnonymizedIPv4Field`
+      * *result cleaning example:*
 
-* ``fqdn.sub``:
+	* *raw value:* ``"x.X.234.168"``
+	* *cleaned value:* ``u"x.x.234.168"``
 
-  * *in params:* **optional**
-  * *in result:* N/A
-  * *field class:* :class:`.DomainNameSubstringField`
-  * *param cleaning example:*
+      Anonymized destination IPv4 address: in quad-dotted decimal
+      notation, with one or more segments replaced with ``"x"``, for
+      example: ``"x.168.0.1"`` or ``"x.x.x.1"`` (*note:* at least the
+      leftmost segment must be replaced with ``"x"``).
 
-    * *raw value:* ``"mple.c"``
-    * *cleaned value:* ``u"mple.c"``
+    * ``dip``:
 
-  Substring of fully qualified domain names related to the queried
-  incidents. Maximum length: 255 characters (after cleaning).
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.IPv4Field`
+      * *param/result cleaning example:*
 
-  .. seealso::
+	* *raw value:* ``"123.10.234.168"``
+	* *cleaned value:* ``u"123.10.234.168"``
 
-     The above :ref:`fqdn <field_spec_fqdn>` description.
+      Destination IPv4 address (for sinkhole, honeypot etc.; does not
+      apply to malicious web sites) in quad-dotted decimal notation.
 
-* ``proto``:
+    * ``dport``:
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.PROTO_ENUMS``
-  * *param/result cleaning example:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.PortField`
+      * *param cleaning example:*
 
-    * *raw value:* ``"tcp"``
-    * *cleaned value:* ``u"tcp"``
+	* *raw value:* ``"80"``
+	* *cleaned value:* ``80``
 
-  Layer #4 protocol label -- one of: ``"tcp"``, ``"udp"``, ``"icmp"``.
+      * *result cleaning examples:*
 
-* ``sport``:
+	* *example synonymous raw values:* ``80`` or ``80.0`` or ``u"80"``
+	* *cleaned value:* ``80``
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.PortField`
-  * *param cleaning example:*
+      TCP/UDP destination port (non-negative integer number, less than
+      65536).
 
-    * *raw value:* ``u"80"``
-    * *cleaned value:* ``80``
+    * ``email``
 
-  * *result cleaning examples:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.EmailSimplifiedField`
+      * *param/result cleaning example:*
 
-    * *example synonymous raw values:* ``80`` or ``80.0`` or ``"80"``
-    * *cleaned value:* ``80``
+	* *raw value:* ``"Foo@example.com"``
+	* *cleaned value:* ``u"Foo@example.com"``
 
-  TCP/UDP source port (non-negative integer number, less than 65536).
+      E-mail address associated with the threat (e.g. source of spam,
+      victim of a data leak).
 
-* ``dport``:
+    .. _field_spec_fqdn:
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.PortField`
-  * *param cleaning example:*
+    * ``fqdn``:
 
-    * *raw value:* ``"80"``
-    * *cleaned value:* ``80``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.DomainNameField`
+      * *param/result cleaning examples:*
 
-  * *result cleaning examples:*
+	* *example synonymous raw values:*
 
-    * *example synonymous raw values:* ``80`` or ``80.0`` or ``u"80"``
-    * *cleaned value:* ``80``
+	  * ``u"WWW.ŁÓDKA.ORG.EXAMPLE"`` or
+	  * ``"WWW.\xc5\x81\xc3\x93DKA.ORG.EXAMPLE"`` or
+	  * ``u"wwW.łódka.org.Example"`` or
+	  * ``"www.\xc5\x82\xc3\xb3dka.org.Example"`` or
+	  * ``u"www.xn--dka-fna80b.org.example"`` or
+	  * ``"www.xn--dka-fna80b.example.org"``
 
-  TCP/UDP destination port (non-negative integer number, less than
-  65536).
+	* *cleaned value:* ``u"www.xn--dka-fna80b.example.org"``
 
-* ``dip``:
+      Fully qualified domain name related to the queried/returned
+      incidents (e.g., for malicious web sites: from the site's URL; for
+      sinkhole/scanning: the domain used for communication). Maximum
+      length: 255 characters (after cleaning).
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.IPv4Field`
-  * *param/result cleaning example:*
+      .. note::
 
-    * *raw value:* ``"123.10.234.168"``
-    * *cleaned value:* ``u"123.10.234.168"``
+	 During cleaning, the ``IDNA`` encoding is applied (see:
+	 https://docs.python.org/2.7/library/codecs.html#module-encodings.idna
+	 and http://en.wikipedia.org/wiki/Internationalized_domain_name;
+	 see also the above examples), then all remaining upper-case
+	 letters are converted to lower-case.
 
-  Destination IPv4 address (for sinkhole, honeypot etc.; does not
-  apply to malicious web sites) in quad-dotted decimal notation.
+    * ``fqdn.sub``:
 
-* ``adip``:
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.DomainNameSubstringField`
+      * *param cleaning example:*
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.AnonymizedIPv4Field`
-  * *result cleaning example:*
+	* *raw value:* ``"mple.c"``
+	* *cleaned value:* ``u"mple.c"``
 
-    * *raw value:* ``"x.X.234.168"``
-    * *cleaned value:* ``u"x.x.234.168"``
+      Substring of fully qualified domain names related to the queried
+      incidents. Maximum length: 255 characters (after cleaning).
 
-  Anonymized destination IPv4 address: in quad-dotted decimal
-  notation, with one or more segments replaced with ``"x"``, for
-  example: ``"x.168.0.1"`` or ``"x.x.x.1"`` (*note:* at least the
-  leftmost segment must be replaced with ``"x"``).
+      .. seealso::
 
-* ``md5``:
+	 The above :ref:`fqdn <field_spec_fqdn>` description.
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.MD5Field`
-  * *param/result cleaning example:*
+    * ``iban``
 
-    * *raw value:* ``"b555773768bc1a672947d7f41f9c247f"``
-    * *cleaned value:* ``u"b555773768bc1a672947d7f41f9c247f"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.IBANSimplifiedField`
+      * *param/result cleaning example:*
 
-  MD5 hash of the binary file related to the (queried/returned)
-  incident.  In the form of a string of 32 hexadecimal digits.
+	* *raw value:* ``"gB82weST12345698765432"``
+	* *cleaned value:* ``u"GB82WEST12345698765432"``
 
-* ``sha1``:
+      International Bank Account Number associated with fraudulent
+      activity.
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.SHA1Field`
-  * *param/result cleaning example:*
+    * ``injects``:
 
-    * *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
-    * *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.ListOfDictsField`
 
-  SHA-1 hash of the binary file related to the (queried/returned)
-  incident.  In the form of a string of 40 hexadecimal digits.
+      List of dictionaries containing data that describe a set of injects
+      performed by banking trojans when a user loads a targeted website.
+      (Exact structure of the dictionaries is dependent on malware family
+      and not specified at this time.)
 
-* ``injects``:
+    * ``md5``:
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.ListOfDictsField`
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.MD5Field`
+      * *param/result cleaning example:*
 
-  List of dictionaries containing data that describe a set of injects
-  performed by banking trojans when a user loads a targeted website.
-  (Exact structure of the dictionaries is dependent on malware family
-  and not specified at this time.)
+	* *raw value:* ``"b555773768bc1a672947d7f41f9c247f"``
+	* *cleaned value:* ``u"b555773768bc1a672947d7f41f9c247f"``
 
-* ``registrar``
+      MD5 hash of the binary file related to the (queried/returned)
+      incident.  In the form of a string of 32 hexadecimal digits.
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=100``
+    * ``modified``
 
-  Name of the domain registrar.
+      * *in params:* N/A
+      * *in result:* **optional**
+      * *field class:* :class:`.DateTimeField`
+      * *result cleaning examples:*
 
-* ``url_pattern``
+	* *example synonymous raw values:*
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=255``
+	  *  ``"2014-11-05T23:13:00.000000"`` or
+	  *  ``"2014-11-06 01:13+02:00"`` or
+	  *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
+	  *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
 
-  Wildcard pattern or regular expression triggering injects used by
-  banking trojans.
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``username``
+      The time when the incident data was *made available through the API
+      or modified*.  Value cleaning includes conversion to UTC time.
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=64``
+    * ``modified.min``:
 
-  Local identifier (login) of the affected user.
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-* ``x509fp_sha1``
+	* *example synonymous raw values:*
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.SHA1Field`
-  * *param/result cleaning example:*
+	  * ``"2014-11-06T01:13+02:00"`` or
+	  * ``u"2014-11-05 23:13:00.000000"``
 
-    * *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
-    * *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-  SHA-1 fingerprint of an SSL certificate.  In the form of a string of
-  40 hexadecimal digits.
+      The *earliest* time the queried incidents were *made available
+      through the API or modified* at.  Value cleaning includes conversion
+      to UTC time.
 
-* ``email``
+    * ``modified.max``:
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.EmailSimplifiedField`
-  * *param/result cleaning example:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-    * *raw value:* ``"Foo@example.com"``
-    * *cleaned value:* ``u"Foo@example.com"``
+	* *example synonymous raw values:*
 
-  E-mail address associated with the threat (e.g. source of spam,
-  victim of a data leak).
+	  * ``u"2014-11-06T01:13+02:00"`` or
+	  * ``"2014-11-05 23:13:00.000000"``
 
-* ``iban``
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.IBANSimplifiedField`
-  * *param/result cleaning example:*
+      The *latest* time the queried incidents were *made available through
+      the API or modified* at.  Value cleaning includes conversion to UTC
+      time.
 
-    * *raw value:* ``"gB82weST12345698765432"``
-    * *cleaned value:* ``u"GB82WEST12345698765432"``
+    * ``modified.until``:
 
-  International Bank Account Number associated with fraudulent
-  activity.
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`,
+	marked as **single_param** in both
+      * *in result:* N/A
+      * *field class:* :class:`.DateTimeField`
+      * *param cleaning examples:*
 
-* ``phone``
+	* *example synonymous raw values:*
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=20``
+	  * ``u"2014-11-06T01:13+02:00"`` or
+	  * ``"2014-11-05 23:13:00.000000"``
 
-  Telephone number (national or international).
+	* *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
 
-* ``expires``:
+      The time the queried incidents were *made available through the API
+      or modified* before (i.e., exclusive; a handy replacement for
+      ``modified.max`` in some cases).  Value cleaning includes conversion
+      to UTC time.
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.DateTimeField`
-  * *result cleaning examples:*
+    * ``name``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=255``
+      * *param/result cleaning example:*
 
-      *  ``"2014-11-05T23:13:00.000000"`` or
-      *  ``"2014-11-06 01:13+02:00"`` or
-      *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
-      *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
+	* *raw value:* ``"LoremIpsuM"``
+	* *cleaned value:* ``u"LoremIpsuM"``
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+      Threat's exact name, such as ``"virut"``, ``"Potential SSH Scan"``
+      or any other... Maximum length: 255 characters (after cleaning).
 
-  Black list item *expiry* time.  Value cleaning includes conversion
-  to UTC time.
+    * ``origin``:
 
-* ``active.min``:
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.ORIGIN_ENUMS``
+      * *param/result cleaning example:*
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+	* *raw value:* ``"honeypot"``
+	* *cleaned value:* ``u"honeypot"``
 
-    * *example synonymous raw values:*
+      Incident origin label (some examples: ``"p2p-crawler"``,
+      ``"sinkhole"``, ``"honeypot"``...).
 
-      * ``"2014-11-05T23:13:00.000000"`` or
-      * ``"2014-11-06 01:13+02:00"``
+    * ``phone``
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=20``
 
-  The *earliest* expiry-or-occurrence time of the queried black list
-  items.  Value cleaning includes conversion to UTC time.
+      Telephone number (national or international).  Maximum length:
+      20 characters (after cleaning).
 
-* ``active.max``:
+    * ``proto``:
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeEnumField`
+      * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.PROTO_ENUMS``
+      * *param/result cleaning example:*
 
-    * *example synonymous raw values:*
+	* *raw value:* ``"tcp"``
+	* *cleaned value:* ``u"tcp"``
 
-      * ``u"2014-11-05T23:13:00.000000"`` or
-      * ``u"2014-11-06 01:13+02:00"``
+      Layer #4 protocol label -- one of: ``"tcp"``, ``"udp"``, ``"icmp"``.
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+    * ``registrar``
 
-  The *latest* expiry-or-occurrence time of the queried black list
-  items.  Value cleaning includes conversion to UTC time.
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=100``
 
-* ``active.until``:
+      Name of the domain registrar.  Maximum length: 100 characters
+      (after cleaning).
 
-  * *in params:* **optional, single**
-  * *in result:* N/A
-  * *field class:* :class:`.DateTimeField`
-  * *param cleaning examples:*
+    * ``sha1``:
 
-    * *example synonymous raw values:*
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.SHA1Field`
+      * *param/result cleaning example:*
 
-      * ``u"2014-11-06T01:13+02:00"`` or
-      * ``"2014-11-05 23:13:00.000000"``
+	* *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+	* *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+      SHA-1 hash of the binary file related to the (queried/returned)
+      incident.  In the form of a string of 40 hexadecimal digits.
 
-  The time the queried incidents *expired or occurred before* (i.e.,
-  exclusive; a handy replacement for ``active.max`` in some cases).
-  Value cleaning includes conversion to UTC time.
+    * ``sport``:
 
-* ``status``:
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.PortField`
+      * *param cleaning example:*
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeEnumField`
-  * *specific field constructor arguments:* ``enum_values=n6sdk.data_spec.STATUS_ENUMS``
-  * *param/result cleaning example:*
+	* *raw value:* ``u"80"``
+	* *cleaned value:* ``80``
 
-    * *raw value:* ``"active"``
-    * *cleaned value:* ``u"active"``
+      * *result cleaning examples:*
 
-  Black list item status qualifier.  One of: ``"active"`` (item
-  currently in the list), ``"delisted"`` (item removed from the list),
-  ``"expired"`` (item expired, so treated as removed by the n6 system)
-  or ``"replaced"`` (e.g.: IP address changed for the same URL).
+	* *example synonymous raw values:* ``80`` or ``80.0`` or ``"80"``
+	* *cleaned value:* ``80``
 
-* ``replaces``:
+      TCP/UDP source port (non-negative integer number, less than 65536).
 
-  * *in params:* **optional**
-  * *in result:* **optional**
-  * *field class:* :class:`.UnicodeLimitedField`
-  * *specific field constructor arguments:* ``max_length=64``
-  * *param/result cleaning example:*
+    * ``target``:
 
-    * *raw value:* ``"abcDEF"``
-    * *cleaned value:* ``u"abcDEF"``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=100``
+      * *param/result cleaning example:*
 
-  ``id`` of the black list item replaced by the queried/returned one.
+	* *raw value:* ``"LoremIpsuM"``
+	* *cleaned value:* ``u"LoremIpsuM"``
 
-* ``until``:
+      Name of phishing target (organization, brand etc.). Maximum length:
+      100 characters (after cleaning).
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.DateTimeField`
-  * *result cleaning examples:*
+    .. _field_spec_url:
 
-    * *example synonymous raw values:*
+    * ``url``:
 
-      *  ``"2014-11-05T23:13:00.000000"`` or
-      *  ``"2014-11-06 01:13+02:00"`` or
-      *  ``datetime.datetime(2014, 11, 5, 23, 13, 0)`` or
-      *  ``datetime.datetime(2014, 11, 6, 1, 13, 0, 0, <tzinfo with UTC offset 2h>)``
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.URLField`
+      * *param/result cleaning examples:*
 
-    * *cleaned value:* ``datetime.datetime(2014, 11, 5, 23, 13, 0)``
+	* *example synonymous raw values:*
 
-  For *aggregated events*: the occurrence time of the *latest*
-  [newest] aggregated event represented by the returned incident data
-  record (*note:* ``time`` is the occurrence time of the *first*
-  [oldest] aggregated event).  Value cleaning includes conversion to
-  UTC time.
+	  * ``"ftp://example.com/non-utf8-\xdd"`` or
+	  * ``u"ftp://example.com/non-utf8-\udcdd"`` or
+	  * ``"ftp://example.com/non-utf8-\xed\xb3\x9d"``
 
-* ``count``:
+	* *cleaned value:* ``u"ftp://example.com/non-utf8-\udcdd"``
 
-  * *in params:* N/A
-  * *in result:* **optional**
-  * *field class:* :class:`.IntegerField`
-  * *specific field constructor arguments:* ``min_value=0, max_value=32767``
-  * *result cleaning examples:*
+      URL related to the queried/returned incidents. Maximum length: 2048
+      characters (after cleaning).
 
-    * *example synonymous raw values:* ``42`` or ``42.0`` or ``"42"``
-    * *cleaned value:* ``42``
+      .. note::
 
-  For *aggregated events*: number of events represented by the
-  returned incident data record.  It must be a positive integer number
-  not greater than 32767.
+	 Cleaning involves decoding byte strings using the
+	 ``surrogateescape`` error handler backported from Python 3.x
+	 (see: :func:`n6sdk.encoding_helpers.provide_surrogateescape`).
+
+    * ``url.sub``:
+
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* N/A
+      * *field class:* :class:`.URLSubstringField`
+      * *param cleaning example:*
+
+	* *raw value:* ``"/example.c"``
+	* *cleaned value:* ``u"/example.c"``
+
+      Substring of URLs related to the queried incidents. Maximum length:
+      2048 characters (after cleaning).
+
+      .. seealso::
+
+	 The above :ref:`url <field_spec_url>` description.
+
+    * ``url_pattern``
+
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:*
+	``max_length=255, disallow_empty=True``
+
+      Wildcard pattern or regular expression triggering injects used
+      by banking trojans.  Maximum length: 255 characters (after
+      cleaning).
+
+    * ``username``
+
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.UnicodeLimitedField`
+      * *specific field constructor arguments:* ``max_length=64``
+
+      Local identifier (login) of the affected user.  Maximum length:
+      64 characters (after cleaning).
+
+    * ``x509fp_sha1``
+
+      * *in params:*
+	**optional** in :class:`~n6sdk.data_spec.AllSearchableDataSpec`,
+	``None`` in :class:`~n6sdk.data_spec.DataSpec`
+      * *in result:* **optional**
+      * *field class:* :class:`.SHA1Field`
+      * *param/result cleaning example:*
+
+	* *raw value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+	* *cleaned value:* ``u"7362d67c4f32ba5cd9096dcefc81b28ca04465b1"``
+
+      SHA-1 fingerprint of an SSL certificate.  In the form of a string of
+      40 hexadecimal digits.
 
 .. note::
 
    **Generally**, byte strings (if any), when converted to Unicode
-   strings, are by default decoded using the ``utf-8`` encoding.
+   strings, are -- by default -- decoded using the ``utf-8`` encoding.
 
 
 .. _extending_data_spec:
 
-Subclassing :class:`n6sdk.data_spec.DataSpec`
----------------------------------------------
+Adding, modifying, replacing and getting rid of particular fields...
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can create your own *data specification class* by subclassing
-:class:`n6sdk.data_spec.DataSpec`.
+As you already now, typically you create your own data specification
+class by subclassing :class:`n6sdk.data_spec.DataSpec` or,
+alternatively, :class:`n6sdk.data_spec.AllSearchableDataSpec`.
 
-Let us **prepare a separate module for our custom data
-specification**:
+For variety's sake, this time we will subclass
+:class:`~n6sdk.data_spec.AllSearchableDataSpec` (it has all relevant
+fields marked as legal query parameters).
+
+Let us prepare a temporary module for our experiments:
 
 .. code-block:: bash
 
-   $ cd <the main directory of the project>/using_n6sdk
-   $ touch data_spec.py
+   $ cd <the outer directory>/Using_N6SDK/using_n6sdk
+   $ touch experimental_data_spec.py
 
-Then, we can open the newly created file (``data_spec.py``) with our
-favorite text editor and **place the following code in it**::
+Then, we can open the newly created file
+(``experimental_data_spec.py``) with our favorite text editor and
+place the following code in it::
 
-    from n6sdk.data_spec import DataSpec
-    from n6sdk.data_spec.fields import UnicodeRegexField
+    from n6sdk.data_spec import AllSearchableDataSpec
+    from n6sdk.data_spec.fields import UnicodeEnumField
 
-    class CustomDataSpec(DataSpec):
+    class ExperimentalDataSpec(AllSearchableDataSpec):
 
-        mac_address = UnicodeRegexField(
-            in_params='optional',  # *can* be in query params
-            in_result='optional',  # *can* be in result data
-
-            regex=r'^(?:[0-9A-F]{2}(?:[:-]|$)){6}$',
-            error_msg_template=u'"{}" is not a valid MAC address',
+        weekday = UnicodeEnumField(
+            in_result='optional',
+            enum_values=(
+                'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                'Friday', 'Saturday', 'Sunday'),
+            ),
         )
 
 We just made a new *data specification class* -- very similar to
-:class:`~n6sdk.data_spec.DataSpec` but with one additional field
-specification: ``mac_address``.
+:class:`~n6sdk.data_spec.AllSearchableDataSpec` but with one
+additional field specification: ``weekday``.
 
 We could also modify (extend) within our subclass some of the field
-specifications inherited from :class:`~n6sdk.data_spec.DataSpec`.  For
-example::
+specifications inherited from
+:class:`~n6sdk.data_spec.AllSearchableDataSpec`.  For example::
 
     from n6sdk.data_spec import (
-        DataSpec,
+        AllSearchableDataSpec,
         Ext,
     )
 
-    class CustomDataSpec(DataSpec):
+    class ExperimentalDataSpec(AllSearchableDataSpec):
         # ...
 
         id = Ext(
@@ -1512,20 +1740,23 @@ example::
             max_length=32,
         )
         time = Ext(
-            # here: enabling bare `time` also for queries
-            # (by default `time.min` and `time.max` query
-            # params are allowed but bare `time` is not)
+            # here: enabling bare `time` as a query parameter
+            # (in AllSearchableDataSpec, by default, the `time.min`,
+            # `time.max`, `time.until` query params are enabled but
+            # bare `time` is not)
             in_params='optional',
 
-            # here: making `time.max` a required (obligatory,
-            # not optional) query parameter
+            # here: making `time.min` a required query parameter
+            # (*required* -- that is: a client *must* specify it
+            # or they will get HTTP-400)
             extra_params=Ext(
-                max=Ext(in_params='required'),
+                min=Ext(in_params='required'),
             ),
         )
 
 Please note how :class:`n6sdk.data_spec.Ext` is used above to extend
-existing (inherited) field specifications.
+existing (inherited) field specifications (see also: the
+:ref:`your_first_data_spec` section).
 
 It is also possible to replace existing (inherited) field
 specifications with completely new definitions...
@@ -1536,7 +1767,7 @@ specifications with completely new definitions...
     from n6sdk.data_spec.fields import MD5Field
     # ...
 
-    class CustomDataSpec(DataSpec):
+    class ExperimentalDataSpec(AllSearchableDataSpec):
         # ...
         id = MD5Field(
             in_params='optional',
@@ -1547,14 +1778,14 @@ specifications with completely new definitions...
 ...as well as to remove (mask) them::
 
     # ...
-    class CustomDataSpec(DataSpec):
+    class ExperimentalDataSpec(AllSearchableDataSpec):
         # ...
         count = None
 
 
 You can also extend the
-:meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` and
-:meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` methods::
+:meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` and/or
+:meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` method::
 
     # ...
 
@@ -1563,12 +1794,12 @@ You can also extend the
         return now.month == 4 and now.day == 1
 
 
-    class CustomDataSpec(DataSpec):
+    class ExperimentalDataSpec(AllSearchableDataSpec):
 
         def clean_param_dict(self, params, ignored_keys=(), **kwargs):
             if _is_april_fools_day():
                 ignored_keys = set(ignored_keys) | {'joke'}
-            return super(CustomDataSpec, self).clean_param_dict(
+            return super(ExperimentalDataSpec, self).clean_param_dict(
                 params,
                 ignored_keys=ignored_keys,
                 **kwargs)
@@ -1576,7 +1807,7 @@ You can also extend the
         def clean_result_dict(self, result, **kwargs):
             if _is_april_fools_day():
                 result['time'] = '1810-03-01T13:13'
-            return super(CustomDataSpec, self).clean_result_dict(
+            return super(ExperimentalDataSpec, self).clean_result_dict(
                 result,
                 **kwargs)
 
@@ -1600,7 +1831,7 @@ You can also extend the
 .. _n6sdk_field_classes:
 
 Standard *n6sdk* field classes
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following list briefly describes all field classes defined in the
 :mod:`n6sdk.data_spec.fields` module:
@@ -1626,6 +1857,7 @@ The following list briefly describes all field classes defined in the
 
     * **encoding** (default: ``"utf-8"``)
     * **decode_error_handling** (default: ``"strict"``)
+    * **disallow_empty** (default: ``True``)
 
   * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
   * *cleaned value type:* :class:`unicode`
@@ -1908,9 +2140,12 @@ The following list briefly describes all field classes defined in the
   argument is a *non-string sequence* (:class:`list` or
   :class:`tuple`, or any other :class:`collections.Sequence` not being
   :class:`str` or :class:`unicode`) and performs result cleaning (as
-  defined in a superclass) for *each item* of it.  See: the
-  :ref:`ListOfDictsField <field_class_ListOfDictsField>` description
-  below.
+  defined in a superclass) for *each item* of it.
+
+  .. seealso::
+
+     The :ref:`ListOfDictsField <field_class_ListOfDictsField>`
+     description below.
 
 * :class:`~.DictResultField`:
 
@@ -1933,6 +2168,11 @@ The following list briefly describes all field classes defined in the
      :meth:`~.DictResultField.clean_param_value` raises
      :exc:`~.exceptions.TypeError`.
 
+  .. seealso::
+
+     The :ref:`ListOfDictsField <field_class_ListOfDictsField>`
+     description below.
+
 .. _field_class_ListOfDictsField:
 
 * :class:`~.ListOfDictsField`:
@@ -1950,6 +2190,14 @@ The following list briefly describes all field classes defined in the
     * **cleaned result value:** ``[{u"a": u"b", u"c": 4, u"e": [1, 2, 3]}]``
 
   For lists of dictionaries containing arbitrary values.
+
+  .. seealso::
+
+     The :ref:`AddressField <field_class_AddressField>` and
+     :ref:`ExtendedAddressField <field_class_ExtendedAddressField>`
+     descriptions below.
+
+.. _field_class_AddressField:
 
 * :class:`~.AddressField`:
 
@@ -1980,6 +2228,8 @@ The following list briefly describes all field classes defined in the
   address in terms of the direction of the network flow in layers 3 or
   4).
 
+.. _field_class_ExtendedAddressField:
+
 * :class:`~.ExtendedAddressField`:
 
   * *base classes:* :class:`~.ListOfDictsField`
@@ -2007,14 +2257,15 @@ The following list briefly describes all field classes defined in the
      *keyword arguments*;
    * "constructor argument or a subclass attribute" means that a
      certain field property can be specified in two alternative ways:
-     either when instantiating the field (as a keyword argument for
-     the constructor) or when subclassing the field (as an attribute
-     of a subclass; see below: :ref:`custom_field_classes`);
+     either when creating a field instance (using a keyword argument
+     for the constructor) or when subclassing the field class (using
+     an attribute of the subclass; see below:
+     :ref:`custom_field_classes`);
    * raw (uncleaned) *parameter* value type is *always*
      :class:`str`/:class:`unicode`;
    * all these classes are *cooperative-inheritance*-friendly (i.e.,
      :func:`super` in subclasses' :meth:`clean_param_value` and
-     :meth:`clean_result_value` will work properly, also for multiple
+     :meth:`clean_result_value` will work properly, also with multiple
      inheritance).
 
 
@@ -2026,7 +2277,7 @@ The following list briefly describes all field classes defined in the
 .. _custom_field_classes:
 
 Custom field classes
---------------------
+^^^^^^^^^^^^^^^^^^^^
 
 You may want to subclass any of the *n6sdk* field classes (described
 above in the :ref:`n6sdk_field_classes` section):
@@ -2037,11 +2288,18 @@ above in the :ref:`n6sdk_field_classes` section):
   :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` and/or
   :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method.
 
-Please, consider the example from one of the previous sections::
+Please, consider the beggining of our ``<the outer
+directory>/Using_N6SDK/using_n6sdk/data_spec.py`` file::
 
-    from n6sdk.data_spec import DataSpec
+    from n6sdk.data_spec import DataSpec, Ext
+    from n6sdk.data_spec.fields import UnicodeRegexField
 
-    class CustomDataSpec(DataSpec):
+
+    class UsingN6sdkDataSpec(DataSpec):
+
+        """
+        The data specification class for the `Using_N6SDK` project.
+        """
 
         mac_address = UnicodeRegexField(
             in_params='optional',  # *can* be in query params
@@ -2054,7 +2312,7 @@ Please, consider the example from one of the previous sections::
 It can be rewritten in a more self-documenting and
 code-reusability-friendly way::
 
-    from n6sdk.data_spec import DataSpec
+    from n6sdk.data_spec import DataSpec, Ext
     from n6sdk.data_spec.fields import UnicodeRegexField
 
 
@@ -2064,22 +2322,22 @@ code-reusability-friendly way::
         error_msg_template = u'"{}" is not a valid MAC address'
 
 
-    class CustomDataSpec(DataSpec):
+    class UsingN6sdkDataSpec(DataSpec):
+
+        """
+        The data specification class for the `Using_N6SDK` project.
+        """
 
         mac_address = MacAddressField(
             in_params='optional',  # *can* be in query params
             in_result='optional',  # *can* be in result data
         )
 
-**Let us save the above code replacing the contents of the**
-``data_spec.py`` **file we created earlier** (see:
-:ref:`extending_data_spec`).
-
 Another technique -- extending the value cleaning methods (see above:
-:ref:`field_cleaning_methods`) -- offers more possibilities.  Let us
-try to create an integer number field that accepts parameter values
-with such suffixes as ``"m"`` (*meters*), ``"kg"`` (*kilograms*) and
-``"s"`` (*seconds*), ignoring the suffixes::
+:ref:`field_cleaning_methods`) -- offers more possibilities.  For
+example, we could create an integer number field that accepts
+parameter values with such suffixes as ``"m"`` (*meters*), ``"kg"``
+(*kilograms*) and ``"s"`` (*seconds*), ignoring the suffixes::
 
     from n6sdk.data_spec.fields import IntegerField
 
@@ -2108,9 +2366,9 @@ If -- in your implementation of
 :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` or
 :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` -- you need
 to raise a cleaning error (to signal that a value is invalid and
-cannot be cleaned) just raise any exception being an instance/subclass
-of standard Python :exc:`~exceptions.Exception`; it *can* (but *does
-not have to*) be :exc:`n6sdk.exceptions.FieldValueError`.
+cannot be cleaned) just raise any exception being an instance of
+standard :exc:`~exceptions.Exception` (or of its subclass); it *can*
+(but *does not have to*) be :exc:`n6sdk.exceptions.FieldValueError`.
 
 When subclassing *n6sdk* field classes, please do not be afraid to
 look into the source code of the :mod:`n6sdk.data_spec.fields` module.
@@ -2164,7 +2422,7 @@ First, we will **create the example JSON data file**:
             "mac_address": "00:11:22:33:44:55", 
             "restriction": "public", 
             "source": "test.first", 
-            "time": "2014-04-01 10:00:00", 
+            "time": "2015-04-01 10:00:00", 
             "url": "http://example.com/?spam=ham"
           }, 
           {
@@ -2174,7 +2432,7 @@ First, we will **create the example JSON data file**:
             "confidence": "medium", 
             "restriction": "need-to-know", 
             "source": "test.first", 
-            "time": "2014-04-01 23:59:59"
+            "time": "2015-04-01 23:59:59"
           }, 
           {
             "id": "3", 
@@ -2192,26 +2450,23 @@ First, we will **create the example JSON data file**:
             "confidence": "high", 
             "restriction": "public", 
             "source": "test.second", 
-            "time": "2014-04-01 23:59:59", 
+            "time": "2015-04-01 23:59:59", 
             "url": "http://example.com/?spam=ham"
           }
         ]
    EOF
 
-Then, we need to **create the Python module for our data backend API
-class**:
-
-.. code-block:: bash
-
-   $ cd <the main directory of the project>/using_n6sdk
-   $ touch data_backend_api.py
-
-Now we can open the newly created file (``data_backend_api.py``) with
-our favorite text editor and **place the following code in it**::
+Then, we need to **open the file** ``<the outer
+directory>/Using_N6SDK/using_n6sdk/data_backend_api.py`` with our
+favorite text editor and **modify it so that it will contain the
+following code** (however, it is recommented not to remove the
+comments and docstrings the file already contains -- as they can be
+valuable hints for future code maintainers)::
 
     import json
 
     from n6sdk.class_helpers import singleton
+    from n6sdk.datetime_helpers import parse_iso_datetime_to_utc
     from n6sdk.exceptions import AuthorizationError
 
 
@@ -2219,31 +2474,38 @@ our favorite text editor and **place the following code in it**::
     class DataBackendAPI(object):
 
         def __init__(self, settings):
-            # STORAGE-SPECIFIC IMPLEMENTATION DETAILS:
-            # (for our example JSON-file-based storage...)
+            ## [...existing docstring + comments...]
+            # Implementation for our example JSON-file-based "storage":
             with open(settings['json_data_file_path']) as f:
                 self.data = json.load(f)
 
-        # one or more data query methods (they can have any names):
+        ## [...existing comments...]
 
         def generate_incidents(self, auth_data, params):
-            # STORAGE-SPECIFIC IMPLEMENTATION DETAILS:
-            # (this is a naive implementation; in a real one some
-            # efficient database query needs to be performed here...)
+            ## [...existing docstring + comments...]
+            # This is a naive implementation for our example
+            # JSON-file-based "storage" (some efficient database
+            # query needs to be performed instead, in case of any
+            # real-world implementation...):
             for incident in self.data:
                 for key, value_list in params.items():
-                    if key in ('ip', 'asn', 'cc'):
+                    if key == 'ip':
                         address_seq = incident.get('address', [])
                         if not any(addr.get(key) in value_list
                                    for addr in address_seq):
                             break   # incident does not match the query params
-                    # WARNING: *.min/*.max/*.until/*.sub/ip.net/ipv6.net
-                    # queries are not supported by this simplified
-                    # implementation
+                    elif key in ('time.min', 'time.max', 'time.until'):
+                        [param_val] = value_list  # must be exactly one value
+                        db_val = parse_iso_datetime_to_utc(incident['time'])
+                        if not ((key == 'time.min' and db_val >= param_val) or
+                                (key == 'time.max' and db_val <= param_val) or
+                                (key == 'time.until' and db_val < param_val)):
+                            break   # incident does not match the query params
                     elif incident.get(key) not in value_list:
                         break       # incident does not match the query params
                 else:
-                    yield incident  # incident matches the query params
+                    # (the inner for loop has not been broken)
+                    yield incident  # incident *matches* the query params
 
 What is important:
 
@@ -2296,7 +2558,7 @@ method** of the data backend API class:
    section of the ``*.ini`` file -- see below:
    :ref:`gluing_it_together`).
 
-2. Configure the storage backend (e.g., create the database
+2. Configure the storage backend (for example, create the database
    connection).
 
 Typically, the following activities are performed **in a data query
@@ -2319,21 +2581,21 @@ method** of the data backend API class:
       carefully.
 
 3. If needed: perform a necessary storage-specific maintenance
-   activity (e.g., re-new a database connection if necessary).
+   activity (e.g., re-new the database connection).
 
 4. Perform a storage-specific query (or queries).
 
    Sometimes you may want to limit the number of allowed results --
-   then, if the limit is exceeded you raise
-   :exc:`n6sdk.exceptions.TooMuchDataError`.
+   then, raise :exc:`n6sdk.exceptions.TooMuchDataError` if the limit
+   is exceeded.
 
 5. Translate the results of the storage-specific query (queries) to
    result dictionaries and *yield* each of these dictionaries (each of
    them should be a dictionary ready to be passed to the
-   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` method
-   defined in your data specification class).
+   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` method of
+   data specification).
 
-   (Obviously, when doing the translation you may need, for example,
+   (Obviously, when doing the translation, you may need, for example,
    to map some storage-specific keys to the result keys accepted by
    the :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` method
    of your data specificaton class...)
@@ -2341,16 +2603,20 @@ method** of the data backend API class:
    If there are no results -- just do not yield any items (the caller
    will obtain an empty iterator).
 
-6. In case of any internal error, raise
-   :exc:`n6sdk.exceptions.DataAPIError`.  If it is caused by another
-   exception (that you have caught) it may be good idea to instantiate
-   :exc:`~n6sdk.exceptions.DataAPIError` with the result of
-   :func:`traceback.format_exc` call as an argument (for debugging
-   purposes).
+In case of an internal error, do not be afraid to raise an exception
+-- any instance of :exc:`~exceptions.Exception` (or of its subclass)
+will be handled automatically by the *n6sdk* machinery: logged
+(including the traceback) using the ``n6sdk.pyramid_commons`` logger
+and transformed into :exc:`pyramid.httpexceptions.HTTPServerError`
+which will break generation of the HTTP response body (note, however,
+that there will be no *HTTP-500* response -- because it is not
+possible to send such an "error response" when some parts of the body
+of the "data response" have already been sent out).
 
 It is recommended to decorate your data backend API class with the
-:func:`n6sdk.class_helpers.singleton` decorator (as shown in the
-example in the :ref:`data_backend_api_interface` section).
+:func:`n6sdk.class_helpers.singleton` decorator (it ensures that the
+class is instantiated only once; any attempt to repeat that causes
+:exc:`~.exceptions.TypeError`).
 
 
 .. _custom_authn_policy:
@@ -2361,7 +2627,7 @@ Custom authentication policy
 A description of the concept of *Pyramid authentication policies* is
 beyond the scope of this tutorial.  Please read the appropriate
 paragraph and example from the documentation of the *Pyramid* library:
-http://docs.pylonsproject.org/projects/pyramid/en/latest/narr/security.html#creating-your-own-authentication-policy
+http://docs.pylonsproject.org/projects/pyramid/en/1.5-branch/narr/security.html#creating-your-own-authentication-policy
 (you may also want to search the *Pyramid* documentation for the term
 ``authentication policy``).
 
@@ -2377,10 +2643,10 @@ decides about that.  The return value will be available as the
 passed into data backend API methods as the `auth_data` argument.
 
 Typically, the :meth:`authenticated_userid` method implementation
-makes use of the :obj:`auth_data` *request* attribute (being return
+makes use of the request's attribute :obj:`auth_data` (being return
 value of :meth:`get_auth_data`), and the :meth:`get_auth_data`
-implementation makes some use of the :obj:`unauthenticated_userid`
-*request* attribute (being return value of the
+implementation makes some use of the request's attribute
+:obj:`unauthenticated_userid` (being return value of the
 :meth:`unauthenticated_userid` policy method).  It is possible because
 :meth:`get_auth_data` is called (by the *Pyramid* machinery) *after*
 the :meth:`unauthenticated_userid` method and *before* the
@@ -2397,9 +2663,11 @@ your own authentication policies. Please consult its source code.
 Gluing it together
 ==================
 
-We will open the ``__init__.py`` file of our application (``<the main
-directory of the project>/using_n6sdk/__init__.py``) with our favorite
-text editor and **place the following code in it**::
+We can inspect the ``__init__.py`` file of our application (``<the
+outer directory>/Using_N6SDK/using_n6sdk/__init__.py``) with our
+favorite text editor.  It contains a lot of useful comments that
+suggest how to customize the code -- however, if we omitted them, the
+actual Python code would be::
 
     from n6sdk.pyramid_commons import (
         AnonymousAuthenticationPolicy,
@@ -2407,22 +2675,17 @@ text editor and **place the following code in it**::
         HttpResource,
     )
 
-    from using_n6sdk.data_backend_api import DataBackendAPI
-    from using_n6sdk.data_spec import CustomDataSpec
+    from .data_spec import UsingN6sdkDataSpec
+    from .data_backend_api import DataBackendAPI
 
 
-    custom_data_spec = CustomDataSpec()
-
+    # (this is how we map URLs to particular data query methods...)
     RESOURCES = [
         HttpResource(
             resource_id='/incidents',
             url_pattern='/incidents.{renderer}',
             renderers=('json', 'sjson'),
-
-            # an *instance* of our data specification class
-            data_spec=custom_data_spec,
-
-            # the *name* of a DataBackendAPI's data query method
+            data_spec=UsingN6sdkDataSpec(),
             data_backend_api_method='generate_incidents',
         ),
     ]
@@ -2430,29 +2693,39 @@ text editor and **place the following code in it**::
 
     def main(global_config, **settings):
         helper = ConfigHelper(
-            # a dict of settings from the *.ini file
             settings=settings,
-
-            # a data backend API *class*
             data_backend_api_class=DataBackendAPI,
-
-            # an *instance* of an authentication policy class
             authentication_policy=AnonymousAuthenticationPolicy(),
-
-            # the list of HTTP resources defined above
             resources=RESOURCES,
         )
         return helper.make_wsgi_app()
 
-You may also need to **customize the settings** in the ``<the main
-directory of the project>/*.ini`` files (``development.ini`` and
-``production.ini``), to match your environment, database configuration
-(if any) etc.
+(In the context of descriptions the previous sections contain, this
+boilerplate code should be rather self-explanatory.  If not, please
+consult the comments in the actual ``<the outer
+directory>/Using_N6SDK/using_n6sdk/__init__.py`` file.)
+
+Now, yet another important step needs to be completed: **customization
+of the settings** in the ``<the outer directory>/Using_N6SDK/*.ini``
+files: ``development.ini`` and ``production.ini`` -- to match the
+environment, database configuration (if any) etc.
+
+.. warning::
+
+   You should **not** place any sensitive settings (such as real
+   database passwords) in these files -- as they are still just
+   configuration file templates (which your will want, for example, to
+   add to your version control system) and **not** real configuration
+   files for production.
+
+   .. seealso::
+
+      The :ref:`prod_install` section.
 
 In case of our naive JSON-file-based data backend implementation (see
 above: :ref:`data_backend_api_interface`) we need to **add the
-following line in the** ``[app:main]`` **section of each of these two
-files**:
+following line in the** ``[app:main]`` **section of each of the two
+settings files** (``development.ini`` and ``production.ini``):
 
 .. code-block:: ini
 
@@ -2463,9 +2736,9 @@ environment):
 
 .. code-block:: bash
 
-   $ cd <the main directory of the project>
+   $ cd <the outer directory>
    $ source dev-venv/bin/activate   # ensuring the virtualenv is active
-   $ pserve development.ini
+   $ pserve Using_N6SDK/development.ini
 
 Our application should be being served now.  Try visiting the
 following URLs (with any web browser or, for example, with the
@@ -2473,39 +2746,69 @@ following URLs (with any web browser or, for example, with the
 
 * ``http://127.0.0.1:6543/incidents.json``
 * ``http://127.0.0.1:6543/incidents.json?ip=11.22.33.44``
+* ``http://127.0.0.1:6543/incidents.json?ip=11.22.33.44&time.min=2015-04-01T23:00:00``
 * ``http://127.0.0.1:6543/incidents.json?category=phish``
 * ``http://127.0.0.1:6543/incidents.json?category=server-exploit``
 * ``http://127.0.0.1:6543/incidents.json?category=server-exploit&ip=11.22.33.44``
-* ``http://127.0.0.1:6543/incidents.json?category=bots&category=dos-attacker``
+* ``http://127.0.0.1:6543/incidents.json?category=bots&category=server-exploit``
 * ``http://127.0.0.1:6543/incidents.json?category=bots,dos-attacker,phish,server-exploit``
 * ``http://127.0.0.1:6543/incidents.sjson?mac_address=00:11:22:33:44:55``
 * ``http://127.0.0.1:6543/incidents.sjson?source=test.first``
 * ``http://127.0.0.1:6543/incidents.sjson?source=test.second``
 * ``http://127.0.0.1:6543/incidents.sjson?source=some.non-existent``
+* ``http://127.0.0.1:6543/incidents.sjson?source=some.non-existent&source=test.second``
+* ``http://127.0.0.1:6543/incidents.sjson?time.min=2015-04-01T23:00``
+* ``http://127.0.0.1:6543/incidents.sjson?time.max=2015-04-01T23:59:59&confidence=medium,low``
+* ``http://127.0.0.1:6543/incidents.sjson?time.until=2015-04-01T23:59:59``
 
 ...as well as those causing (expected) errors:
 
 * ``http://127.0.0.1:6543/incidents``
+* ``http://127.0.0.1:6543/incidents.jsonnn``
 * ``http://127.0.0.1:6543/incidents.json?some-illegal-key=1&another-one=foo``
 * ``http://127.0.0.1:6543/incidents.json?category=wrong``
 * ``http://127.0.0.1:6543/incidents.json?category=bots,wrong``
 * ``http://127.0.0.1:6543/incidents.json?category=bots&category=wrong``
 * ``http://127.0.0.1:6543/incidents.json?ip=11.22.33.44.55``
-* ``http://127.0.0.1:6543/incidents.sjson?ip=11.22.33.444``
 * ``http://127.0.0.1:6543/incidents.sjson?mac_address=00:11:123456:33:44:55``
+* ``http://127.0.0.1:6543/incidents.sjson?time.min=2015-04-01T23:00,2015-04-01T23:30``
+* ``http://127.0.0.1:6543/incidents.sjson?time.min=2015-04-01T23:00&time.min=2015-04-01T23:30``
 * ``http://127.0.0.1:6543/incidents.sjson?time.min=blablabla``
+* ``http://127.0.0.1:6543/incidents.sjson?time.max=blablabla&ip=11.22.33.444``
+* ``http://127.0.0.1:6543/incidents.sjson?time.until=2015-04-01T23:59:59&ip=11.22.33.444``
 
+Now, it can be a good idea to try the :ref:`helper script for
+automatized basic API testing <n6sdk_api_test_tool>`.
+
+
+.. _prod_install:
 
 Installation for production (using Apache server)
 =================================================
 
+.. warning::
+
+   This section is intended to be a brief and rough explanation how
+   you can glue relevant configuration stuff together.  It is **not**
+   intended to be used as a step-by-step recipe for a secure
+   production configuration.  **The final configuration (including but
+   not limited to file access permissions) should always be carefully
+   reviewed by an experienced system administrator -- BEFORE it is
+   deployed on a publicly available server**.
+
 Prerequisites are similar to those concerning the development
-environment, listed near the beginning of this tutorial
-(:ref:`setting_up_working_env`).  The Debian GNU/Linux operating
-system in the version 7.7 or newer is recommended to follow the guides
-presented below.  Additional prerequisite is that the Apache2 HTTP
-server is installed and configured together with ``mod_wsgi`` (the
-``apache2`` and ``libapache2-mod-wsgi`` Debian packages).
+environment, listed near the beginning of this tutorial.  The same
+applies to the way of obtaining the source code of *n6sdk*.
+
+.. seealso::
+
+   The :ref:`working_env_prerequisites` section.
+
+The Debian GNU/Linux operating system in the version 7.9 or newer is
+recommended to follow the guides presented below.  Additional
+prerequisite is that the Apache2 HTTP server is installed and
+configured together with ``mod_wsgi`` (the ``apache2`` and
+``libapache2-mod-wsgi`` Debian packages).
 
 First, we will create a directory structure and a *virtualenv* for our
 server, e.g. under ``/opt``:
@@ -2522,17 +2825,16 @@ Then, let us install the necessary packages:
 
 .. code-block:: bash
 
-   $ cd <the main N6SDK source directory>
+   $ cd <the outer directory>/n6sdk
    $ python setup.py install
-   $ cd <the main directory of the project>
+   $ cd <the outer directory>/Using_N6SDK
    $ python setup.py install
 
-(Of course, ``<the main n6sdk source directory>`` needs to be replaced
-with the actual name (absolute path) of the directory containing the
-source code of the *n6sdk* library; and ``<the main directory of the
-project>`` needs to be replaced with the actual name (absolute path)
-of the directory containing the source code of our *n6sdk*-based
-project.)
+(Of course, ``<the outer directory>/n6sdk`` needs to be replaced with
+the actual name (absolute path) of the directory containing the source
+code of the *n6sdk* library; and ``<the outer directory>/Using_N6SDK``
+needs to be replaced with the actual name (absolute path) of the
+directory containing the source code of our *n6sdk*-based project.)
 
 Now, we will copy the template of the configuration file for
 production:
@@ -2540,11 +2842,29 @@ production:
 .. code-block:: bash
 
     $ cd /opt/myn6-srv
-    $ sudo cp <the main directory of the project>/production.ini ./
+    $ sudo cp <the outer directory>/Using_N6SDK/production.ini ./
 
-You may want to customize the settings it contains, especially to
-match your production environment, database configuration etc.  Just
-edit the ``/opt/myn6-srv/production.ini`` file.
+For security sake, let us restrict access to the ``production.ini``
+file before we will place any real passwords and other sensitive
+settings in it:
+
+.. code-block:: bash
+
+    $ sudo chown root ./production.ini
+    $ sudo chmod 600 ./production.ini
+
+We need to ensure that the Apache's user group has read-only access to
+the file.  On Debian GNU/Linux it can be done by executing:
+
+.. code-block:: bash
+
+    $ sudo chgrp www-data ./production.ini
+    $ sudo chmod g+r ./production.ini
+
+You may want to customize the settings that the file contains,
+especially to match your production environment, database
+configuration etc.  Just edit the ``/opt/myn6-srv/production.ini``
+file.
 
 Then, we will create the WSGI script:
 
@@ -2581,7 +2901,7 @@ it can be done by executing:
       # (multiple ones do not cooperate well with C extensions).
       WSGIApplicationGroup %{GLOBAL}
 
-      # Remove the following line if you use native Apache authorisation.
+      # Remove the following line if you use native Apache authorization.
       WSGIPassAuthorization On
 
       WSGIDaemonProcess myn6_srv \\
@@ -2608,9 +2928,9 @@ it can be done by executing:
       #ServerAdmin webmaster@yourserver.example.com
     </VirtualHost>
     EOF
+    $ sudo chmod 640 prod-venv/myn6.apache
+    $ sudo chown root:root prod-venv/myn6.apache
     $ sudo mv prod-venv/myn6.apache /etc/apache2/sites-available/myn6
-    $ sudo chown root:root /etc/apache2/sites-available/myn6
-    $ sudo chmod 644 /etc/apache2/sites-available/myn6
     $ cd /etc/apache2/sites-enabled
     $ sudo ln -s ../sites-available/myn6 001-myn6
 

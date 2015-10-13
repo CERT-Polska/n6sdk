@@ -31,6 +31,12 @@ class FixedOffsetTimezone(datetime.tzinfo):
     >>> tz
     FixedOffsetTimezone(180)
 
+    >>> import copy
+    >>> tz is copy.copy(tz)
+    True
+    >>> tz is copy.deepcopy(tz)
+    True
+
     >>> dt = datetime.datetime(2014, 5, 31, 1, 2, 3, tzinfo=tz)
     >>> dt.utcoffset()
     datetime.timedelta(0, 10800)
@@ -47,6 +53,12 @@ class FixedOffsetTimezone(datetime.tzinfo):
         self.__offset = offset
         self.__td_offset = datetime.timedelta(minutes=offset)
         self.__name = '<UTC Offset: {0:+04}>'.format(offset)
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
 
     def __repr__(self):
         return '{0}({1!r})'.format(self.__class__.__name__,
