@@ -16,8 +16,8 @@ Setting up the development environment
 
 .. _working_env_prerequisites:
 
-Satisfying prerequisites and obtaining the source code
-------------------------------------------------------
+Prerequisites
+-------------
 
 You need to have:
 
@@ -27,7 +27,7 @@ You need to have:
   aforementioned ones) + your favorite text editor installed;
 * the *Python 2.7* language interpreter installed (on Debian GNU/Linux
   it can be installed with the command: ``sudo apt-get install
-  python2.7`` -- although, typically, it is already installed);
+  python2.7``);
 * The *git* version control system installed (on Debian GNU/Linux it
   can be installed with the command: ``sudo apt-get install git``);
 * the *virtualenv* tool installed (see:
@@ -36,26 +36,31 @@ You need to have:
   install python-virtualenv``);
 * Internet access.
 
-First thing we need to do after satisfying the requirements listed
-above is to obtain the source code of the *n6sdk* library.  We will
-start with creating the outer directory for all our activities:
+
+.. _obtaining_source_code:
+
+Obtaining the *n6sdk* source code
+---------------------------------
+
+We will start with creating the "workbench" directory for all our
+activities:
 
 .. code-block:: bash
 
-   $ mkdir <the outer directory>
+   $ mkdir <the workbench directory>
 
-(Of course, ``<the outer directory>`` needs to be replaced with the
-actual name (absolute path) of the directory you want to create.)
+(Of course, ``<the workbench directory>`` needs to be replaced with
+the actual name (absolute path) of the directory you want to create.)
 
-Then, we need to clone the source of the *n6sdk* library:
+Then, we need to clone the *n6sdk* source code repository:
 
 .. code-block:: bash
 
-   $ cd <the outer directory>
+   $ cd <the workbench directory>
    $ git clone https://github.com/CERT-Polska/n6sdk.git
 
-Now, in the ``<the outer directory>/n6sdk/`` subdirectory we have the
-*n6sdk* source code.
+Now, in the ``<the workbench directory>/n6sdk/`` subdirectory we have
+the source code of the *n6sdk* library.
 
 
 .. _dev_install:
@@ -86,11 +91,10 @@ Then, we need to create our project:
 
 -- where ``Using_N6SDK`` is the name of our new *n6sdk*-based project.
 Obviously, when creating your real project you will want to pick
-another name -- providing the restriction that the name consist only
-of letters (uppercase and/or lowercase) and underscores.  Anyway, for
-the rest of this tutorial we will use ``Using_N6SDK`` as the project
-name (and, consequently, ``using_n6sdk`` as the "technical" package
-name).
+another name.  Anyway, for the rest of this tutorial we will use
+``Using_N6SDK`` as the project name (and, consequently,
+``using_n6sdk`` as the "technical" package name, automatically
+derived from the given project name).
 
 Now, we have the skeleton of our new project.  You may want to
 customize some details in the newly created files, especially the
@@ -102,13 +106,13 @@ Then, we need to install our new project *for development*:
 
    $ cd Using_N6SDK
    $ python setup.py develop
+   $ cd ..
 
 We can check whether everything up to now went well by running the
 Python interpreter...
 
 .. code-block:: bash
 
-   $ cd ..
    $ python
 
 ...and trying to import some of the installed components:
@@ -422,7 +426,7 @@ data specification class (see below...).
 Your first data specification class
 -----------------------------------
 
-**Let us open the** ``<the outer
+**Let us open the** ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/data_spec.py`` **file with our
 favorite text editor and uncomment the following lines in it** (within
 the body of the ``UsingN6sdkDataSpec`` class)::
@@ -1698,7 +1702,7 @@ Let us prepare a temporary module for our experiments:
 
 .. code-block:: bash
 
-   $ cd <the outer directory>/Using_N6SDK/using_n6sdk
+   $ cd <the workbench directory>/Using_N6SDK/using_n6sdk
    $ touch experimental_data_spec.py
 
 Then, we can open the newly created file
@@ -2288,7 +2292,7 @@ above in the :ref:`n6sdk_field_classes` section):
   :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` and/or
   :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method.
 
-Please, consider the beggining of our ``<the outer
+Please, consider the beggining of our ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/data_spec.py`` file::
 
     from n6sdk.data_spec import DataSpec, Ext
@@ -2456,7 +2460,7 @@ First, we will **create the example JSON data file**:
         ]
    EOF
 
-Then, we need to **open the file** ``<the outer
+Then, we need to **open the file** ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/data_backend_api.py`` with our
 favorite text editor and **modify it so that it will contain the
 following code** (however, it is recommented not to remove the
@@ -2664,7 +2668,7 @@ Gluing it together
 ==================
 
 We can inspect the ``__init__.py`` file of our application (``<the
-outer directory>/Using_N6SDK/using_n6sdk/__init__.py``) with our
+workbench directory>/Using_N6SDK/using_n6sdk/__init__.py``) with our
 favorite text editor.  It contains a lot of useful comments that
 suggest how to customize the code -- however, if we omitted them, the
 actual Python code would be::
@@ -2702,20 +2706,21 @@ actual Python code would be::
 
 (In the context of descriptions the previous sections contain, this
 boilerplate code should be rather self-explanatory.  If not, please
-consult the comments in the actual ``<the outer
+consult the comments in the actual ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/__init__.py`` file.)
 
 Now, yet another important step needs to be completed: **customization
-of the settings** in the ``<the outer directory>/Using_N6SDK/*.ini``
-files: ``development.ini`` and ``production.ini`` -- to match the
-environment, database configuration (if any) etc.
+of the settings** in the ``<the workbench
+directory>/Using_N6SDK/*.ini`` files: ``development.ini`` and
+``production.ini`` -- to match the environment, database configuration
+(if any) etc.
 
 .. warning::
 
    You should **not** place any sensitive settings (such as real
    database passwords) in these files -- as they are still just
-   configuration file templates (which your will want, for example, to
-   add to your version control system) and **not** real configuration
+   configuration templates (which your will want, for example, to add
+   to your version control system) and **not** real configuration
    files for production.
 
    .. seealso::
@@ -2736,7 +2741,7 @@ environment):
 
 .. code-block:: bash
 
-   $ cd <the outer directory>
+   $ cd <the workbench directory>
    $ source dev-venv/bin/activate   # ensuring the virtualenv is active
    $ pserve Using_N6SDK/development.ini
 
@@ -2802,7 +2807,8 @@ applies to the way of obtaining the source code of *n6sdk*.
 
 .. seealso::
 
-   The :ref:`working_env_prerequisites` section.
+   The sections: :ref:`working_env_prerequisites` and
+   ref:`obtaining_source_code`.
 
 The Debian GNU/Linux operating system in the version 7.9 or newer is
 recommended to follow the guides presented below.  Additional
@@ -2825,16 +2831,17 @@ Then, let us install the necessary packages:
 
 .. code-block:: bash
 
-   $ cd <the outer directory>/n6sdk
+   $ cd <the workbench directory>/n6sdk
    $ python setup.py install
-   $ cd <the outer directory>/Using_N6SDK
+   $ cd <the workbench directory>/Using_N6SDK
    $ python setup.py install
 
-(Of course, ``<the outer directory>/n6sdk`` needs to be replaced with
-the actual name (absolute path) of the directory containing the source
-code of the *n6sdk* library; and ``<the outer directory>/Using_N6SDK``
-needs to be replaced with the actual name (absolute path) of the
-directory containing the source code of our *n6sdk*-based project.)
+(Of course, ``<the workbench directory>/n6sdk`` needs to be replaced
+with the actual name (absolute path) of the directory containing the
+source code of the *n6sdk* library; and ``<the workbench
+directory>/Using_N6SDK`` needs to be replaced with the actual name
+(absolute path) of the directory containing the source code of our
+*n6sdk*-based project.)
 
 Now, we will copy the template of the configuration file for
 production:
@@ -2842,7 +2849,7 @@ production:
 .. code-block:: bash
 
     $ cd /opt/myn6-srv
-    $ sudo cp <the outer directory>/Using_N6SDK/production.ini ./
+    $ sudo cp <the workbench directory>/Using_N6SDK/production.ini ./
 
 For security sake, let us restrict access to the ``production.ini``
 file before we will place any real passwords and other sensitive

@@ -1,7 +1,26 @@
+0.6.1 (2015-10-21)
+==================
+
+Documentation-related changes:
+
+* The *0.6.0* release made the contents of the
+  ``examples/BasicExample`` directory out-of-date.  Now, the directory
+  has been completely removed and relevant documentation parts have
+  been adjusted.
+
+  Note: to generate a (richly commented) template for your
+  *n6sdk*-based project you can use the ``pcreate -s n6sdk
+  YourProjectName`` command (within the virtualenv in which *n6sdk*
+  has been installed).  See also: the *Tutorial*.
+
+* Several documentation fixes and improvements (including fixes and
+  rearrangements in these *release notes*).
+
+
 0.6.0 (2015-10-13)
 ==================
 
-Major or backward incompatible changes:
+Significant or backward incompatible changes:
 
 * Documentation: some **security-related** fixes in the *Installation
   for production...* and *Gluing it together* sections of the
@@ -46,9 +65,9 @@ Major or backward incompatible changes:
 
   See: the updated *Tutorial*.
 
-* Now, the field specification `DataSpec.category.url_pattern`
-  requires that ``url_pattern`` values (concerning query parameter
-  values as well as result values), if present, are *not* empty.
+* Now, the field specification `DataSpec.url_pattern` requires that
+  ``url_pattern`` values (concerning query parameter values as well as
+  result values), if present, are *not* empty.
 
   To implement this restriction, a new boolean flag has been added to
   `n6sdk.data_spec.fields.UnicodeField` (and all its subclasses):
@@ -65,7 +84,14 @@ Major or backward incompatible changes:
   erroneously accept an IPv4 address as a domain name has been
   suppressed).
 
-* HTTP error handling has been revamped.  Among others, now
+* A new category added to `DataSpec.category.enum_values`:
+  ``'malware-action'``.
+
+* A new field specification added to `DataSpec`: ``action``, intented
+  to be used for events whose category is ``'malware-action'``
+  (mentioned above).
+
+* Exception handling has been revamped.  Among others, now
   ``content-type`` of HTTP error pages is set to ``text/plain`` (not
   to ``text/html``).
 
@@ -97,30 +123,20 @@ Major or backward incompatible changes:
 * The `pyramid` library (an existing external dependency) is now
   restricted to be not newer than version `1.5.7`.
 
-* New external dependencies added: `python-cjson`_ and `requests`_
-  (used by the ``n6sdk_api_test`` tool mentioned above).
-
-.. _`python-cjson`: https://pypi.python.org/pypi/python-cjson
-.. _`requests`: http://docs.python-requests.org/en/latest/
-
 
 Other changes:
 
-* A new category added to `DataSpec.category.enum_values`:
-  ``'malware-action'``.
+* New external dependencies added: `python-cjson`_ and `requests`_
+  (used by the ``n6sdk_api_test`` tool mentioned above).
 
-* A new field specification added to `DataSpec`: ``action``, intented
-  to be used for events whose category is ``'malware-action'``
-  (mentioned above).
+* A bugfix: now, log messages from the `n6sdk.pyramid_commons` module
+  are emitted using the ``'n6sdk.pyramid_commons'`` logger rather than
+  the root logger.
 
 * A new public helper function added:
   `n6sdk.pyramid_commons.renderers.data_dict_to_json()`; it defines
   how the standard renderers ``json`` and ``sjson`` serialize each
   data record (for details, see the documentation of the function);
-
-* A bugfix: now, log messages from the `n6sdk.pyramid_commons` module
-  are emitted using the ``'n6sdk.pyramid_commons'`` logger rather than
-  the root logger.
 
 * Various minor code cleanups, refactorizations and improvements.
 
@@ -128,11 +144,14 @@ Other changes:
 
 * A lot of documentation improvements and fixes.
 
+.. _`python-cjson`: https://pypi.python.org/pypi/python-cjson
+.. _`requests`: http://docs.python-requests.org/en/latest/
+
 
 0.5.0 (2015-04-18)
 ==================
 
-Major or backward incompatible changes:
+Significant or backward incompatible changes:
 
 * Now, multiple values for a client query parameter can be specified
   in URL query strings in two alternative ways:
@@ -168,7 +187,7 @@ Major or backward incompatible changes:
   The *Tutorial* and other parts of the documentation have been
   adjusted appropriately.
 
-* Significant changes related to *data specification fields*:
+* A lot of changes related to *data specification fields*:
 
   * New field classes in the `n6sdk.data_spec.fields` module:
 
@@ -178,7 +197,10 @@ Major or backward incompatible changes:
     * `IBANSimplifiedField` (for International Bank Account Numbers),
     * `ListOfDictsField` (for lists of dictionaries containing
       arbitrary data),
-    * `DirField` (two-value enumeration: ``'src'`` or ``'dst'``).
+    * `DirField` (two-value enumeration: ``'src'`` or ``'dst'``),
+    * `ExtendedAddressField` (for lists of address data items -- see
+      the change in the ``address`` field specification, mentioned
+      below).
 
   * Modified field classes in the `n6sdk.data_spec.fields`
     module:
@@ -357,7 +379,7 @@ Documentation-related news (including big ones!):
 0.3.0 (2014-08-12)
 ==================
 
-Major or backward incompatible changes:
+Significant or backward incompatible changes:
 
 * Network incident category ``"ddos"`` has been replaced with two
   separate categories: ``"dos-attacker"`` and ``"dos-victim"`` (see:
@@ -372,7 +394,7 @@ Major or backward incompatible changes:
 0.2.0 (2014-08-08)
 ==================
 
-Major or backward incompatible changes:
+Significant or backward incompatible changes:
 
 * Changes in the base data specification class
   (`n6sdk.data_spec.DataSpec`) and/or in the classes defined in the
