@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2015 NASK. All rights reserved.
+# Copyright (c) 2013-2016 NASK. All rights reserved.
 
 """
 .. note::
@@ -132,8 +132,10 @@ STATUS_ENUMS = (
 class Ext(dict):
 
     """
-    A :class:`dict`-like class for extending field properties in
-    :class:`DataSpec` subclasses.
+    An auxiliary class of a :class:`dict`-like container -- to be used
+    to extend field specifications in :class:`DataSpec` subclasses (for
+    usage examples, see the descriptions of :class:`DataSpec` and
+    :class:`AllSearchableDataSpec`).
     """
 
     def __repr__(self):
@@ -171,8 +173,9 @@ class BaseDataSpec(object):
     """
     The base class for data specification classes.
 
-    Typically, it should not be subclassed directly -- use
-    :class:`DataSpec` instead.
+    Typically, you will not instantiate or subclass this class directly
+    -- instead, you may want to use :class:`DataSpec` or, more likely, a
+    subclass of it.
     """
 
     def __init__(self, **kwargs):
@@ -446,9 +449,9 @@ class DataSpec(BaseDataSpec):
     """
     The basic, ready-to-use, data specification class.
 
-    Typically, you will want to create a subclass of it (especially
-    that, by default, all fields are *disabled as query parameters*).
-    For example::
+    Typically, you will want to create a subclass of it (note that, by
+    default, all fields are *disabled as query parameters*, so you may
+    want to *enable* some of them).  For example::
 
         class MyDataSpec(DataSpec):
 
@@ -489,7 +492,7 @@ class DataSpec(BaseDataSpec):
 
     .. seealso::
 
-        The :class:`AllSearchableDataSpec` class.
+        Compare this class with :class:`AllSearchableDataSpec`.
     """
 
     #
@@ -751,11 +754,12 @@ class AllSearchableDataSpec(DataSpec):
     A :class:`DataSpec` subclass with most of its fields marked as searchable.
 
     You may want to use this class instead of :class:`DataSpec` if your
-    data backend makes it easy to search by various event attributes.
+    data backend makes it easy to search by various event attributes
+    (all relevant ones or most of them).
 
-    Typically, you will want to create a subclass of
-    :class:`AllSearchableDataSpec` (e.g., to disable
-    some searchable parameters).  For example::
+    Typically, you will want to create your own subclass of
+    :class:`AllSearchableDataSpec` (especially to *disable* some
+    searchable parameters).  For example::
 
         class MyDataSpec(AllSearchableDataSpec):
 
@@ -792,6 +796,10 @@ class AllSearchableDataSpec(DataSpec):
                     'Friday', 'Saturday', 'Sunday'),
                 ),
             )
+
+    .. seealso::
+
+        Compare this class with :class:`DataSpec`.
     """
 
     #

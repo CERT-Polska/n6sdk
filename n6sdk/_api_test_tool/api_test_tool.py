@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-'''
-This tool is a part of n6sdk. It analyses and verifies API built on the base of
-provided API and can tell if it meets requirements from technical specification.
-Also it will show non-standard keys, and any 'extra' data yielded from tested API.
+# Copyright (c) 2013-2016 NASK. All rights reserved.
 
-Copyright 2015 by NASK.
-'''
+"""
+This tool is a part of *n6sdk*.  It can analyse and verify an
+*n6*-like REST API, tell if that API meets the basic requirements,
+and report any non-standard keys or "extra" result data.
+"""
 
 import argparse
 import ConfigParser
@@ -19,7 +19,7 @@ from urlparse import urlparse
 import cjson
 import requests
 import requests.packages.urllib3
-from pkg_resources import Requirement, resource_filename
+from pkg_resources import Requirement, resource_filename, cleanup_resources
 
 from n6sdk._api_test_tool.client import APIClient
 from n6sdk._api_test_tool.data_test import DataSpecTest
@@ -31,10 +31,13 @@ from n6sdk._api_test_tool.validator_exceptions import (
 
 
 def get_config_base_lines():
-    filename = resource_filename(Requirement.parse('n6sdk'),
-                                 'n6sdk/_api_test_tool/config_base.ini')
-    with open(filename) as f:
-        return f.read().splitlines()
+    try:
+        filename = resource_filename(Requirement.parse('n6sdk'),
+                                     'n6sdk/_api_test_tool/config_base.ini')
+        with open(filename) as f:
+            return f.read().splitlines()
+    finally:
+        cleanup_resources()
 
 def get_config(path):
     config = ConfigParser.RawConfigParser()

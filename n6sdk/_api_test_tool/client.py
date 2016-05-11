@@ -63,6 +63,10 @@ class APIClient(object):
         if self._response and self._response.status_code == requests.codes.ok:
             for line in self._response.iter_lines(4096):
                 if line:
+                    # NOTE: here we use cjson.decode() instead of
+                    # stdlib's json.loads() -- because of the bug
+                    # https://bugs.python.org/issue11489 which
+                    # affects all pre-2.7.7 releases of CPython
                     yield cjson.decode(line)
 
     def status(self):

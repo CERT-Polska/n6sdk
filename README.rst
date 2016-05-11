@@ -28,7 +28,7 @@ Copyright, License and Authors
 Basic Legal Information
 -----------------------
 
-Copyright (c) 2013-2015 `Naukowa i Akademicka Sieć Komputerowa
+Copyright (c) 2013-2016 `Naukowa i Akademicka Sieć Komputerowa
 (Research and Academic Computer Network)`_.  All rights reserved.
 See also: the *Supplementary Attributions* section below.
 

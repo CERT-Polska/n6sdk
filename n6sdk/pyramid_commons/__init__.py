@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2014 NASK. All rights reserved.
+# Copyright (c) 2013-2016 NASK. All rights reserved.
 
 """
 .. note::
@@ -113,9 +113,11 @@ class DefaultStreamViewBase(object):
     data_backend_api_method = None
     adjust_exc = None
 
-    #: Can be set to False in a subclass to skip result
-    #: records that could not be cleaned (by default
-    #: :exc:`pyramid.httpexceptions.HTTPServerError` is raised).
+    #: This flag can be set to :obj:`False` in a subclass to skip result
+    #: records that could not be cleaned.  By default (when it is set to
+    #: :obj:`True`), an error is raised if a result record could not be
+    #: cleaned (then, typically, the final outcome is discontinuation of
+    #: the -- already partially sent -- response).
     break_on_result_cleaning_error = True
 
     @classmethod
@@ -130,7 +132,8 @@ class DefaultStreamViewBase(object):
         Args/kwargs:
             `resource_id` (string):
                 The identifier of the HTTP resource (as given as the
-                first argument for the :class:`HttpResource` costructor).
+                `resource_id` argument for the :class:`HttpResource`
+                costructor).
             `renderers` (:class:`frozenset` of strings):
                 Names of available stream renderers (each of them should
                 have been registered -- see the documentation of
@@ -313,6 +316,8 @@ class HttpResource(object):
 
     .. seealso::
 
+       See:
+
        * :meth:`DefaultStreamViewBase.concrete_view_class`,
        * :class:`ConfigHelper`.
     """
@@ -427,7 +432,7 @@ class ConfigHelper(object):
             self.complete()
         return self.config.make_wsgi_app()
 
-    # overridable/extendable methods:
+    # overridable/extendable methods (hooks):
 
     def prepare_settings(self, settings):
         return dict(settings)
@@ -622,7 +627,7 @@ latest/narr/security.html#creating-your-own-authentication-policy
         :attr:`auth_data` `request` attribute (see:
         :meth:`ConfigHelper.prepare_config` above), which means that
         this function is called *after* :meth:`unauthenticated_userid`
-        and *before* meth:`authenticated_userid`.
+        and *before* `meth:`authenticated_userid`.
 
         It should be implemented as a *static method*.
 

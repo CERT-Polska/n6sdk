@@ -44,7 +44,7 @@ Installation
 ------------
 
 The script is automatically installed in the appropriate place when
-you install *n6sdk* by running ``python setup.py ...`` (see:
+you install *n6sdk* by running ``python setup.py install`` (see:
 :ref:`dev_install` or :ref:`prod_install`).
 
 

@@ -25,7 +25,7 @@ with open(osp.join(setup_dir, 'README.rst')) as f:
 
 setup(
     name="n6sdk",
-    version='0.6.1',
+    version='0.6.2',
     packages=find_packages(),
     dependency_links=dep_links,
     install_requires=requirements,

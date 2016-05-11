@@ -31,7 +31,7 @@ You need to have:
 * The *git* version control system installed (on Debian GNU/Linux it
   can be installed with the command: ``sudo apt-get install git``);
 * the *virtualenv* tool installed (see:
-  http://virtualenv.readthedocs.org/en/latest/virtualenv.html; on
+  http://virtualenv.readthedocs.org/en/latest/installation.html; on
   Debian GNU/Linux it can be installed with the command: ``sudo apt-get
   install python-virtualenv``);
 * Internet access.
@@ -65,8 +65,8 @@ the source code of the *n6sdk* library.
 
 .. _dev_install:
 
-Installing the necessary stuff
-------------------------------
+Installing and setting up the necessary stuff
+---------------------------------------------
 
 Next, we will create and activate our Python *virtual environment*:
 
@@ -127,8 +127,8 @@ Python interpreter...
 
 .. _data_processing_and_arch:
 
-Data processing and architecture overview
-=========================================
+Overview of data processing and architecture
+============================================
 
 When a client sends a **HTTP request** to the *n6 REST API*, the
 following data processing is performed on the server side:
@@ -298,7 +298,7 @@ class::
             ),
         )
 
-        address = ExtendedAddressField(
+        address = AddressField(
             in_params=None,
             in_result='optional',
         )
@@ -360,7 +360,7 @@ What do we see in the above listing is that:
    **optional** as query parameters, and they are **not** legal items
    of a result dictionary.  Unlike most of other fields, these three
    fields do not allow to specify multiple query parameter values
-   (note the constructor argument `single_param` set to ``True``).
+   (note the constructor argument `single_param` set to :obj:`True`).
 
 4. ``address`` is a field whose values are lists of dictionaries
    containing ``ip`` and optionally ``asn`` and ``cc`` (as the
@@ -412,13 +412,16 @@ you can:
 * extend the :class:`~n6sdk.data_spec.DataSpec`'s cleaning methods.
 
 (See comments in ``Using_N6SDK/using_n6sdk/data_spec.py`` as well as
-descriptions in the following sections of this tutorial.)
+the :ref:`following <your_first_data_spec>` :ref:`sections
+<more_on_data_spec>` of this tutorial.)
 
 You may also want to subclass :class:`n6sdk.data_spec.fields.Field`
 (or any of its subclasses, such as :class:`~.UnicodeLimitedField`,
 :class:`~.IPv4Field` or :class:`~.IntegerField`) to create new kinds
 of fields whose instances can be used as field specifications in your
-data specification class (see below...).
+data specification class (see :ref:`some portions
+<custom_field_classes>` of the following sections of this
+tutorial...).
 
 
 .. _your_first_data_spec:
@@ -496,14 +499,47 @@ specification:** ``mac_address``.
 
 (Of course, we *do not remove* the lines uncommented earlier.)
 
+If we need to get rid of some fields inherited from
+:class:`~n6sdk.data_spec.DataSpec` -- then we can **just set them to**
+:obj:`None`::
 
-More knowledge about data specification...
-------------------------------------------
+    class UsingN6sdkDataSpec(DataSpec):
+
+        """
+        The data specification class for the `Using_N6SDK` project.
+        """
+
+        action = None
+        x509fp_sha1 = None
+
+(Of course, we *do not remove* the lines uncommented and added
+earlier.)
+
+
+.. seealso::
+
+   Please read :ref:`the apropriate subsection <extending_data_spec>`
+   of the next section to learn more about adding, modifying,
+   replacing and getting rid of particular fields.
+
+
+.. _more_on_data_spec:
+
+More on data specification
+--------------------------
+
+.. note::
+
+   This section of the tutorial does not need to be read from the
+   beginning to the end.  It is intended to be used as a guide to
+   *data specification* and *field specification* classes, so please
+   just check out the matter you are interested in.
+
 
 .. _data_spec_cleaning_methods:
 
-The data specification's cleaning methods
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Data specification's cleaning methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The most important methods of any *data specification* (typically, an
 instance of :class:`n6sdk.data_spec.DataSpec` or of its subclass) are:
@@ -578,8 +614,8 @@ dictionaries:
 
 .. _field_cleaning_methods:
 
-The field's cleaning methods
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Field specification's cleaning methods
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The most important methods of any *field* (an instance of
 :class:`n6sdk.data_spec.fields.Field` or of its subclass) are:
@@ -600,7 +636,7 @@ following way:
 
 * The data specification's method
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_param_dict` (described
-  above in the :ref:`data_spec_cleaning_methods` section) calls the
+  above, in :ref:`data_spec_cleaning_methods`) calls the
   :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` method of
   the appropriate field -- separately **for each element of each of
   the raw value lists taken from the dictionary passed as the
@@ -627,7 +663,7 @@ following way:
 
 * the data specification's method
   :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` (described
-  above in the :ref:`data_spec_cleaning_methods` section) calls the
+  above, in :ref:`data_spec_cleaning_methods`) calls the
   :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method of
   the appropriate field -- **for each raw value from the dictionary
   passed as the argument**.
@@ -669,8 +705,8 @@ following way:
 
      .. warning::
 
-        For security sake, when extending
-        :meth:`n6sdk.data_spec.BaseDataSpec.clean_result_dict` ensure
+        For security sake, when extending data specification's
+        :meth:`~n6sdk.data_spec.BaseDataSpec.clean_result_dict` ensure
         that your implementation behaves in the same way as described
         in this *note*.
 
@@ -1344,7 +1380,7 @@ in these two classes.
 
       .. seealso::
 
-	 The above :ref:`fqdn <field_spec_fqdn>` description.
+	 See the above :ref:`fqdn <field_spec_fqdn>` description.
 
     * ``iban``
 
@@ -1636,7 +1672,7 @@ in these two classes.
 
       .. seealso::
 
-	 The above :ref:`url <field_spec_url>` description.
+	 See the above :ref:`url <field_spec_url>` description.
 
     * ``url_pattern``
 
@@ -1834,8 +1870,8 @@ You can also extend the
 
 .. _n6sdk_field_classes:
 
-Standard *n6sdk* field classes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Standard field specification classes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following list briefly describes all field classes defined in the
 :mod:`n6sdk.data_spec.fields` module:
@@ -1861,7 +1897,7 @@ The following list briefly describes all field classes defined in the
 
     * **encoding** (default: ``"utf-8"``)
     * **decode_error_handling** (default: ``"strict"``)
-    * **disallow_empty** (default: ``True``)
+    * **disallow_empty** (default: :obj:`False`)
 
   * *raw (uncleaned) result value type:* :class:`str` or :class:`unicode`
   * *cleaned value type:* :class:`unicode`
@@ -2135,7 +2171,7 @@ The following list briefly describes all field classes defined in the
   * *base classes:* :class:`~.Field`
   * *most useful constructor arguments or subclass attributes:*
 
-    * **allow_empty** (default: ``False`` which means that an empty
+    * **allow_empty** (default: :obj:`False` which means that an empty
       sequence causes a cleaning error)
 
   A mix-in class for fields whose result values are supposed to be a
@@ -2148,7 +2184,7 @@ The following list briefly describes all field classes defined in the
 
   .. seealso::
 
-     The :ref:`ListOfDictsField <field_class_ListOfDictsField>`
+     See the :ref:`ListOfDictsField <field_class_ListOfDictsField>`
      description below.
 
 * :class:`~.DictResultField`:
@@ -2174,7 +2210,7 @@ The following list briefly describes all field classes defined in the
 
   .. seealso::
 
-     The :ref:`ListOfDictsField <field_class_ListOfDictsField>`
+     See the :ref:`ListOfDictsField <field_class_ListOfDictsField>`
      description below.
 
 .. _field_class_ListOfDictsField:
@@ -2197,7 +2233,7 @@ The following list briefly describes all field classes defined in the
 
   .. seealso::
 
-     The :ref:`AddressField <field_class_AddressField>` and
+     See the :ref:`AddressField <field_class_AddressField>` and
      :ref:`ExtendedAddressField <field_class_ExtendedAddressField>`
      descriptions below.
 
@@ -2275,24 +2311,24 @@ The following list briefly describes all field classes defined in the
 
 .. seealso::
 
-   The :ref:`data_spec_overview` section above.
+   See above: :ref:`data_spec_overview`.
 
 
 .. _custom_field_classes:
 
-Custom field classes
-^^^^^^^^^^^^^^^^^^^^
+Custom field specification classes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You may want to subclass any of the *n6sdk* field classes (described
-above in the :ref:`n6sdk_field_classes` section):
+above, in :ref:`n6sdk_field_classes`):
 
-* to override class attributes,
+* to override some class attributes,
 
 * to extend the
   :meth:`~n6sdk.data_spec.fields.Field.clean_param_value` and/or
   :meth:`~n6sdk.data_spec.fields.Field.clean_result_value` method.
 
-Please, consider the beggining of our ``<the workbench
+Please, consider the beginning of our ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/data_spec.py`` file::
 
     from n6sdk.data_spec import DataSpec, Ext
@@ -2396,11 +2432,11 @@ here is the API the *n6sdk*'s machinery needs to use to get the data.
 
 Therefore, for the purposes of this tutorial, we will assume that our
 network incident data is stored in the simplest possible way: *in one
-file in the JSON format*.  You will have to replace any implementation
-details related to this particular way of keeping and querying for
-data with an implementation appropriate for the data store you use
-(file reads, SQL queries or whatever is needed for the particular
-storage backend) -- see the next section:
+file, in the JSON format*.  You will have to replace any
+implementation details related to this particular way of keeping data
+and querying for data with an implementation appropriate for the data
+store you use (file reads, SQL queries or whatever is needed for the
+particular storage backend) -- see the next section:
 :ref:`implementation_guidelines`.
 
 First, we will **create the example JSON data file**:
@@ -2629,11 +2665,16 @@ Custom authentication policy
 ============================
 
 A description of the concept of *Pyramid authentication policies* is
-beyond the scope of this tutorial.  Please read the appropriate
-paragraph and example from the documentation of the *Pyramid* library:
+beyond the scope of this tutorial.  Unless you need something more
+sophisticated than the dummy
+:class:`~n6sdk.pyramid_commons.AnonymousAuthenticationPolicy` you can
+skip to :ref:`the next chapter <gluing_it_together>` of this tutorial.
+
+Otherwise, please read the appropriate portion and example from the
+documentation of the *Pyramid* library:
 http://docs.pylonsproject.org/projects/pyramid/en/1.5-branch/narr/security.html#creating-your-own-authentication-policy
 (you may also want to search the *Pyramid* documentation for the term
-``authentication policy``).
+``authentication policy``) as well as the following paragraphs.
 
 The *n6sdk* library requires that the authentication policy class has
 the additional static (decorated with :func:`staticmethod`) method
@@ -2659,7 +2700,7 @@ the :meth:`unauthenticated_userid` method and *before* the
 The *n6sdk* library provides
 :class:`n6sdk.pyramid_commons.BaseAuthenticationPolicy` -- an
 authentication policy base class that makes it easier to implement
-your own authentication policies. Please consult its source code.
+your own authentication policies.  Please consult its source code.
 
 
 .. _gluing_it_together:
@@ -2704,9 +2745,9 @@ actual Python code would be::
         )
         return helper.make_wsgi_app()
 
-(In the context of descriptions the previous sections contain, this
-boilerplate code should be rather self-explanatory.  If not, please
-consult the comments in the actual ``<the workbench
+(In the context of descriptions the previous portions of the tutorial
+contain, this boilerplate code should be rather self-explanatory.  If
+not, please consult the comments in the actual ``<the workbench
 directory>/Using_N6SDK/using_n6sdk/__init__.py`` file.)
 
 Now, yet another important step needs to be completed: **customization
@@ -2725,7 +2766,7 @@ directory>/Using_N6SDK/*.ini`` files: ``development.ini`` and
 
    .. seealso::
 
-      The :ref:`prod_install` section.
+      See below: :ref:`prod_install`.
 
 In case of our naive JSON-file-based data backend implementation (see
 above: :ref:`data_backend_api_interface`) we need to **add the
@@ -2793,13 +2834,13 @@ Installation for production (using Apache server)
 
 .. warning::
 
-   This section is intended to be a brief and rough explanation how
-   you can glue relevant configuration stuff together.  It is **not**
-   intended to be used as a step-by-step recipe for a secure
-   production configuration.  **The final configuration (including but
-   not limited to file access permissions) should always be carefully
-   reviewed by an experienced system administrator -- BEFORE it is
-   deployed on a publicly available server**.
+   The content of this chapter is intended to be a brief and rough
+   explanation how you can glue relevant configuration stuff together.
+   It is **not** intended to be used as a step-by-step recipe for a
+   secure production configuration.  **The final configuration
+   (including but not limited to file access permissions) should
+   always be carefully reviewed by an experienced system administrator
+   -- BEFORE it is deployed on a publicly available server**.
 
 Prerequisites are similar to those concerning the development
 environment, listed near the beginning of this tutorial.  The same
@@ -2807,8 +2848,8 @@ applies to the way of obtaining the source code of *n6sdk*.
 
 .. seealso::
 
-   The sections: :ref:`working_env_prerequisites` and
-   ref:`obtaining_source_code`.
+   See the sections: :ref:`working_env_prerequisites` and
+   :ref:`obtaining_source_code`.
 
 The Debian GNU/Linux operating system in the version 7.9 or newer is
 recommended to follow the guides presented below.  Additional
@@ -2951,6 +2992,8 @@ following directives (see the comments accompanying them in the file):
 * ``ServerAdmin``.
 
 .. seealso::
+
+    See:
 
     * About general configuration of Apache:
       http://httpd.apache.org/docs/2.2/configuring.html

@@ -74,7 +74,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'n6sdk'
-copyright = u'2013-2015, NASK'
+copyright = u'2013-2016, NASK'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -314,4 +314,4 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'http://docs.python.org/': None}
+intersphinx_mapping = {'http://docs.python.org/2.7': None}

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013-2014 NASK. All rights reserved.
+# Copyright (c) 2013-2016 NASK. All rights reserved.
 #
 # For some parts of the source code of the provide_surrogateescape() function:
 # Copyright (c) 2011-2013 Victor Stinner. All rights reserved.
@@ -61,7 +61,7 @@ class AsciiMixIn(object):
 def ascii_str(obj):
 
     r"""
-    Safely convert the given object to an ASCII-only string.
+    Safely convert the given object to an ASCII-only :class:`str`.
 
     This function does its best to obtain a pure-ASCII string
     representation (possibly :class:`str`/:func:`unicode`-like, though
@@ -224,7 +224,7 @@ def provide_surrogateescape():
     times -- because if the handler is already registered the function
     does not try to register it again) though it is not thread-safe
     (typically it does not matter as the function is supposed to be
-    called somewhere at the begginning of program execution).
+    called somewhere at the beginning of program execution).
 
     .. note::
 

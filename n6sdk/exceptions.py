@@ -36,8 +36,8 @@ class _ErrorWithPublicMessageMixin(object):
 
     .. seealso::
 
-       The documentation of the public exception classes provided
-       by this module.
+       See the documentation of the public exception classes provided by
+       this module.
 
     The :class:`str` and :class:`unicode` conversions that are provided
     by the class use the value of :attr:`public_message`:
@@ -177,9 +177,9 @@ class FieldValueError(_ErrorWithPublicMessageMixin, ValueError):
 
     .. seealso::
 
-       :exc:`_ErrorWithPublicMessageMixin` as well as the
+       See: :exc:`_ErrorWithPublicMessageMixin` as well as the
        :exc:`ParamValueCleaningError` and
-       :exc:`ResultValueCleaningError` documentation.
+       :exc:`ResultValueCleaningError`.
     """
 
 

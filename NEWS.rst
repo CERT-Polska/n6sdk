@@ -1,3 +1,20 @@
+0.6.2 (2016-05-11)
+==================
+
+Bugfixes:
+
+* The ``n6sdk_api_test`` script now performs a cleanup after using the
+  *pkg_resources* stuff (when executed with the ``--generate-config``
+  option).
+
+* A minor template fix in the *n6sdk* Pyramid scaffold.
+
+
+Documentation-related changes:
+
+* A lot of documentation fixes and improvements.
+
+
 0.6.1 (2015-10-21)
 ==================
 
@@ -8,10 +25,10 @@ Documentation-related changes:
   has been completely removed and relevant documentation parts have
   been adjusted.
 
-  Note: to generate a (richly commented) template for your
-  *n6sdk*-based project you can use the ``pcreate -s n6sdk
-  YourProjectName`` command (within the virtualenv in which *n6sdk*
-  has been installed).  See also: the *Tutorial*.
+  Note: to generate an *n6sdk*-based project template (richly
+  commented) you can use the ``pcreate -s n6sdk YourProjectName``
+  command (within the virtualenv in which *n6sdk* has been installed).
+  See also: the *Tutorial*.
 
 * Several documentation fixes and improvements (including fixes and
   rearrangements in these *release notes*).
@@ -27,8 +44,8 @@ Significant or backward incompatible changes:
   *Tutorial* -- especially, related to necessary access restrictions
   on ``production.ini`` file.
 
-* A new utility script added: ``n6sdk_api_test``.  It is -- a tool to
-  perform basic validation of your *n6sdk*-based API.  (The script is
+* A new utility script added: ``n6sdk_api_test`` -- a tool to perform
+  basic validation of your *n6sdk*-based API.  (The script is
   automatically installed in the appropriate place when you install
   *n6sdk*.)
 
@@ -84,11 +101,11 @@ Significant or backward incompatible changes:
   erroneously accept an IPv4 address as a domain name has been
   suppressed).
 
-* A new category added to `DataSpec.category.enum_values`:
+* A new incident category added to `DataSpec.category.enum_values`:
   ``'malware-action'``.
 
-* A new field specification added to `DataSpec`: ``action``, intented
-  to be used for events whose category is ``'malware-action'``
+* A new field specification added to `DataSpec`: ``action``, intended
+  to be used for incidents whose category is ``'malware-action'``
   (mentioned above).
 
 * Exception handling has been revamped.  Among others, now
@@ -522,10 +539,10 @@ Significant or backward incompatible changes:
     * now the `concrete_view_class()` class method has completely
       different signature (see its documentation for details; note
       that `data_spec` now must be an instance, not a class); now each
-      concrete subclass must have specified the `resource_id`,
-      `renderers`, `data_spec` and `data_backend_api_method`
-      attributes (for more information, also see the documentation of
-      the `concrete_view_class()` class method mentioned above);
+      concrete subclass must have the `resource_id`, `renderers`,
+      `data_spec` and `data_backend_api_method` attributes specified
+      (for more information, also see the documentation of the
+      `concrete_view_class()` class method mentioned above);
 
     * formely, the data specification's `clean_param_dict()` call
       performed in `prepare_params()` was guarded only against

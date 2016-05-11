@@ -201,7 +201,7 @@ def dict_with_nulls_removed(
 def data_dict_to_json(data, **kwargs):
     r"""
     Serialize the given data dictionary to JSON (using any additional
-    keyword arguments as argument for func:`json.dumps`), applying
+    keyword arguments as argument for `func:`json.dumps`), applying
     :func:`dict_with_nulls_removed` and converting contained
     :class:`datetime.datetime` instances (if any) to strings.  Only
     :class:`datetime.datetime` instances that are "naive", i.e. not

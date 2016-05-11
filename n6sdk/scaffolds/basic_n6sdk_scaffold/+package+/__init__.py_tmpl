@@ -56,7 +56,7 @@ RESOURCES = [
     #    ...
     #    # Instead of the standard n6sdk.pyramid_commons.DefaultStreamViewBase
     #    # view base class we can use its customized subclass:
-    #    view_base=UsingN6sdkStreamViewBase,
+    #    view_base={{capitalized_package}}StreamViewBase,
     #
     #    # By default it is GET only:
     #    http_methods=('GET', 'POST'),
